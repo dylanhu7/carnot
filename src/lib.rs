@@ -1,14 +1,24 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+// src/lib.rs
+
+pub mod render;
+pub mod window;
+
+pub use render::Renderer;
+pub use window::Window;
+
+pub struct GameEngine {
+    window: Window,
+    renderer: Renderer,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl GameEngine {
+    pub async fn new(width: u32, height: u32, title: &str) -> Self {
+        let window = Window::new(width, height, title);
+        let renderer = Renderer::new(&window.window).await;
+        Self { window, renderer }
+    }
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    pub fn run(mut self) {
+        self.window.run();
     }
 }
