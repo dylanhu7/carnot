@@ -83,6 +83,8 @@ I have also found Brooks Builds' [YouTube series](https://www.youtube.com/playli
 
 In my initial implementation, I will follow [this tutorial](https://ianjk.com/ecs-in-rust/) from [Ian Kettlewell](https://ianjk.com/about/) but also bring in additional functionality such as resources and built-in iterators.
 
+In the future, I hope to implement a much more advanced ECS system that can handle complex queries and define systems ergonoimcally. Bevy's ECS system is extremely ergonomic, using Rust functions as systems and function parameters to define queries. Ian Kettlewell's [kecs] crate might be a good reference for that, as it's not as feature-rich as Bevy's ECS but still provides a nice API for an archetypal ECS system.
+
 ## 2024-04-01
 
 In researching modern render pipelines, I have decided to play around with Vulkan as there are more resources available covering best practices and common optimizations. I have started following the [Vulkan Tutorial](https://docs.vulkan.org/tutorial/latest/index.html) in C++. I am particularly interested in the parts of the tutorial that cover synchronization, as understanding how synchronization is naively implemented in Vulkan with semaphores and fences will help me understand how a render graph system can abstract away these details.
