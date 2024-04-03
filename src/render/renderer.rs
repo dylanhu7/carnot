@@ -1,11 +1,12 @@
 // src/render/renderer.rs
 
 use super::context;
+use crate::render::context::RenderContext;
 use std::sync::Arc;
 
 pub struct Renderer {
-    window: Arc<winit::window::Window>,
-    context: context::RenderContext<'static>,
+    pub window: Arc<winit::window::Window>,
+    pub context: RenderContext<'static>,
 }
 
 impl Renderer {

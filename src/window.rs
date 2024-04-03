@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use winit::{
     event::*,
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
+
+use crate::{ecs::World, render::Renderer};
 
 pub struct Window {
     event_loop: EventLoop<()>,
@@ -27,31 +29,29 @@ impl Window {
         }
     }
 
-    pub fn run(mut self) {
-        let _ = self
-            .event_loop
-            .run(move |event, elwt: &EventLoopWindowTarget<()>| {
-                match event {
-                    Event::WindowEvent { event, .. } => match event {
-                        WindowEvent::CloseRequested => {
-                            // Close the window
-                            elwt.exit();
-                        }
-                        WindowEvent::Resized(size) => {
-                            // Update the window size
-                            // ...
-                        }
-                        WindowEvent::ScaleFactorChanged {
-                            scale_factor,
-                            inner_size_writer,
-                        } => {
-                            // Update the window size
-                            // ...
-                        }
-                        _ => {}
-                    },
+    pub fn run(self, world: &mut World, _renderer: &mut Renderer) {
+        let _ = self.event_loop.run(move |event, elwt| {
+            match event {
+                Event::WindowEvent { event, .. } => match event {
+                    WindowEvent::RedrawRequested => {
+                        world.update();
+                    }
+                    WindowEvent::CloseRequested => {
+                        // Close the window
+                        elwt.exit();
+                    }
+                    WindowEvent::Resized(_) => {
+                        // Update the window size
+                        // ...
+                    }
+                    WindowEvent::ScaleFactorChanged { .. } => {
+                        // Update the window size
+                        // ...
+                    }
                     _ => {}
-                }
-            });
+                },
+                _ => {}
+            }
+        });
     }
 }

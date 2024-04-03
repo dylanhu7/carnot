@@ -1,9 +1,9 @@
-// examples/simple_game.rs
+// examples/demo.rs
 
 use carnot::App;
 
 #[tokio::main]
 async fn main() {
-    let mut game_engine = App::new(800, 600, "Carnot Demo").await;
-    game_engine.run();
+    let app = App::new(800, 600, "Carnot Demo").await;
+    app.run();
 }
