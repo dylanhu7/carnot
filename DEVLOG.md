@@ -1,5 +1,92 @@
 # Carnot Development Log
 
+## 2024-04-03
+
+### Beginning the ECS implementation
+
+I have added the [`World`](src/ecs/world.rs) struct and implemeted a resource system:
+
+```rust
+pub struct World {
+    resources: HashMap<TypeId, Box<dyn Any>>,
+}
+
+impl World {
+  ...
+  pub fn add_resource<T: 'static>(&mut self, resource: T) {
+        self.resources.insert(TypeId::of::<T>(), Box::new(resource));
+    }
+
+    pub fn get_resource<T: 'static>(&self) -> Option<&T> {
+        self.resources
+            .get(&TypeId::of::<T>())
+            .and_then(|resource| resource.downcast_ref::<T>())
+    }
+
+    pub fn get_resource_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.resources
+            .get_mut(&TypeId::of::<T>())
+            .and_then(|resource| resource.downcast_mut::<T>())
+    }
+
+    pub fn get_resource_or_insert_with<T: 'static, F: FnOnce() -> T>(&mut self, f: F) -> &T {
+        self.resources
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| Box::new(f()))
+            .downcast_ref::<T>()
+            .unwrap()
+    }
+
+    pub fn remove_resource<T: 'static>(&mut self) -> Option<T> {
+        self.resources
+            .remove(&TypeId::of::<T>())
+            .and_then(|resource| resource.downcast().ok().map(|resource| *resource))
+    }
+
+    pub fn contains_resource<T: 'static>(&self) -> bool {
+        self.resources.contains_key(&TypeId::of::<T>())
+    }
+    ...
+}
+```
+
+Here, we leverage Rust's `TypeId` to be able to set and get resources by their type directly. This is super neat, as it allows us to avoid the need for a string identifier or enum variant to identify resources. Internally, `TypeId` is a unique identifier for a type generated at compile time (though it is not guaranteed to be the same across different runs of the program).
+
+By using a `HashMap<TypeId, Box<dyn Any>>`, we can store a single resource of any type in the world. For example, we might want to store the elapsed time in our game loop:
+
+```rust
+struct Time(f64);
+let mut world = World::new();
+world.add_resource::<Time>(Time(0.0));
+```
+
+We can then retrieve the resource later:
+
+```rust
+loop {
+    let time = world.get_resource::<Time>().unwrap();
+    println!("Current time: {}", time.0);
+}
+```
+
+## 2024-04-02
+
+Taking a break from the render pipeline research, I have been looking into ECS implementations in Rust. It seems that ECS in Rust is actually quite a popular topic, with countless libraries and a solid amount of resources available. Some existing ECS libraries include:
+
+- [bevy-ecs](https://crates.io/crates/bevy-ecs) (used in the [Bevy](https://bevyengine.org/) game engine)
+- [hecs](https://crates.io/crates/hecs)
+- [legion](https://crates.io/crates/legion) (used in the archived Amethyst game engine)
+- [specs](https://crates.io/crates/specs)
+- [gecs](https://crates.io/crates/gecs) (compile-time generated queries)
+
+I have also found Brooks Builds' [YouTube series](https://www.youtube.com/playlist?list=PLrmY5pVcnuE_SQSzGPWUJrf9Yo-YNeBYs) very helpful in not only how to implement a basic ECS system in Rust, but also as a fantastic crash course in fundamental Rust language features and patterns.
+
+In my initial implementation, I will follow [this tutorial](https://ianjk.com/ecs-in-rust/) from [Ian Kettlewell](https://ianjk.com/about/) but also bring in additional functionality such as resources and built-in iterators.
+
+## 2024-04-01
+
+In researching modern render pipelines, I have decided to play around with Vulkan as there are more resources available covering best practices and common optimizations. I have started following the [Vulkan Tutorial](https://docs.vulkan.org/tutorial/latest/index.html) in C++. I am particularly interested in the parts of the tutorial that cover synchronization, as understanding how synchronization is naively implemented in Vulkan with semaphores and fences will help me understand how a render graph system can abstract away these details.
+
 ## 2024-03-27
 
 I found the blog post from Godot very accessible, as it explains concepts without too much technical jargon so that someone who simply uses the engine, for example, might understand it. A few major takeaways include:
