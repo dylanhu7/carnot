@@ -50,6 +50,7 @@ impl Window {
                     }
                     _ => {}
                 },
+                Event::AboutToWait { .. } => {}
                 _ => {}
             }
         });

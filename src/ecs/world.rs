@@ -53,12 +53,34 @@ fn resources_test() {
     let mut world = World::new();
     world.add_resource::<String>("Hello, World!".to_string());
     world.add_resource::<u32>(42);
-    world.add_resource::<f32>(3.14);
+    world.add_resource::<f32>(std::f32::consts::PI);
 
     assert_eq!(
-        world.get_resource::<String>(),
-        Some(&"Hello, World!".to_string())
+        *world.get_resource::<String>().unwrap(),
+        "Hello, World!".to_string()
     );
-    assert_eq!(world.get_resource::<u32>(), Some(&42));
-    assert_eq!(world.get_resource::<f32>(), Some(&3.14));
+    assert_eq!(*world.get_resource::<u32>().unwrap(), 42);
+    assert_eq!(*world.get_resource::<f32>().unwrap(), std::f32::consts::PI);
+
+    world.get_resource_mut::<String>().unwrap().push('!');
+    assert_eq!(
+        *world.get_resource::<String>().unwrap(),
+        "Hello, World!!".to_string()
+    );
+
+    assert_eq!(
+        *world.get_resource_or_insert_with::<String, _>(|| "Won't be inserted".to_string()),
+        "Hello, World!!".to_string()
+    );
+
+    assert!(world.contains_resource::<String>());
+    assert!(world.contains_resource::<u32>());
+    assert!(world.contains_resource::<f32>());
+
+    assert_eq!(
+        world.remove_resource::<String>().unwrap(),
+        "Hello, World!!".to_string()
+    );
+    assert!(world.remove_resource::<String>().is_none());
+    assert!(!world.contains_resource::<String>());
 }
