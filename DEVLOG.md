@@ -71,7 +71,8 @@ WindowEvent::RedrawRequested => {
 
 The builting render system [`render_system.rs`](src/builtins/systems/render_system.rs) is hacked together for now, and it renders a cube!
 
-![Cube]()
+![Cube](https://github.com/dylanhu7/carnot/assets/45575415/a6743071-d07a-4fd4-a5f0-999efa797722)
+
 
 However, this current `render_system` does not abstract away any of the `wgpu` boilerplate, and so we do not yet have an extensible and ergonomic rendering API. This will be a focus in the near future.
 
