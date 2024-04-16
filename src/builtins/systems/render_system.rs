@@ -7,13 +7,26 @@ use crate::render::render_pass::RenderPassBuilder;
 use crate::render::vertex::Vertex;
 use crate::{ecs::World, render::Renderer};
 
+pub struct ActiveCamera;
+
 pub fn render_system(world: &mut World, renderer: &mut Renderer) {
-    let camera = world.get_resource::<PerspectiveCamera>().unwrap();
+    let camera_vec = world.borrow_component_vec::<PerspectiveCamera>().unwrap();
+    let active_camera_vec = world.borrow_component_vec::<ActiveCamera>().unwrap();
+    let transforms_vec = world.borrow_component_vec::<Transform>().unwrap();
+
+    let (camera, camera_transform) = camera_vec
+        .iter()
+        .zip(transforms_vec.iter())
+        .zip(active_camera_vec.iter())
+        .filter(|((_, _), active)| active.is_some())
+        .filter_map(|((camera, transform), _)| Some((camera.as_ref()?, transform.as_ref()?)))
+        .next()
+        .expect("No active camera found");
+
     let meshes = world.borrow_component_vec::<Mesh>().unwrap();
-    let transforms = world.borrow_component_vec::<Transform>().unwrap();
     let models = meshes
         .iter()
-        .zip(transforms.iter())
+        .zip(transforms_vec.iter())
         .filter_map(|(mesh, transform)| Some((mesh.as_ref()?, transform.as_ref()?)));
 
     let device = &renderer.context.device;
@@ -23,8 +36,8 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer) {
         source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/shader.wgsl").into()),
     });
 
-    let mut camera_uniform = CameraUniform::new();
-    camera_uniform.from_view_proj(&camera.view_matrix, &camera.projection_matrix);
+    let camera_uniform =
+        CameraUniform::from_inv_view_proj(&camera_transform.into(), &camera.projection_matrix);
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Camera Buffer"),
         contents: bytemuck::cast_slice(&[camera_uniform]),
@@ -39,7 +52,7 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer) {
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -88,7 +101,7 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer) {
             topology: wgpu::PrimitiveTopology::TriangleList,
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
-            cull_mode: None,
+            cull_mode: Some(wgpu::Face::Back),
             // Setting this to anything other than Fill requires Features::POLYGON_MODE_LINE
             // or Features::POLYGON_MODE_POINT
             polygon_mode: wgpu::PolygonMode::Fill,
