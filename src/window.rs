@@ -1,15 +1,12 @@
 use std::sync::Arc;
 
 use winit::{
-    event::*,
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
-use crate::{ecs::World, render::Renderer};
-
 pub struct Window {
-    event_loop: EventLoop<()>,
+    pub event_loop: EventLoop<()>,
     pub window: Arc<winit::window::Window>,
 }
 
@@ -27,32 +24,5 @@ impl Window {
             event_loop,
             window: Arc::new(window),
         }
-    }
-
-    pub fn run(self, world: &mut World, _renderer: &mut Renderer) {
-        let _ = self.event_loop.run(move |event, elwt| {
-            match event {
-                Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::RedrawRequested => {
-                        world.update();
-                    }
-                    WindowEvent::CloseRequested => {
-                        // Close the window
-                        elwt.exit();
-                    }
-                    WindowEvent::Resized(_) => {
-                        // Update the window size
-                        // ...
-                    }
-                    WindowEvent::ScaleFactorChanged { .. } => {
-                        // Update the window size
-                        // ...
-                    }
-                    _ => {}
-                },
-                Event::AboutToWait { .. } => {}
-                _ => {}
-            }
-        });
     }
 }
