@@ -1,5 +1,82 @@
 # Carnot Development Log
 
+## 2024-04-16
+
+### Simple systems
+
+In order to actually use the ECS system, we need to define a way for users to define systems that operate on entities with certain components.
+
+We add a field to the `App` struct to store systems:
+
+```rust
+type System = Box<dyn FnMut(&mut World, &mut Renderer)>;
+
+pub struct App {
+    ...
+    systems: Vec<System>,
+}
+```
+
+In most ECS implementations, systems are considered part of the "world", but if the `World` owned the systems and we wanted to pass `&mut World` to the systems, we would run into issues. For now, we will store the systems in the `App` struct and see if there are better ways to organize ownership and borrowing in the future.
+
+For now, we have the `Renderer` as a parameter to the system functions, but in the future this should be removed once we have a better way to expose the renderer to the systems.
+
+We also add a method to add systems to the `App`:
+
+```rust
+impl App {
+    ...
+    pub fn add_system(&mut self, system: System) {
+        self.systems.push(system);
+    }
+    ...
+}
+```
+
+We can now define systems and add them to the `App`:
+
+```rust
+fn render_system(world: &mut World, renderer: &mut Renderer) {
+    let camera = world.get_resource::<PerspectiveCamera>().unwrap();
+    let meshes = world.borrow_component_vec::<Mesh>().unwrap();
+    let transforms = world.borrow_component_vec::<Transform>().unwrap();
+    let models = meshes
+        .iter()
+        .zip(transforms.iter())
+        .filter_map(|(mesh, transform)| Some((mesh.as_ref()?, transform.as_ref()?)));
+    ...
+}
+
+fn main() {
+    let mut app = App::new();
+    app.add_system(Box::new(render_system));
+    ...
+}
+```
+
+And the systems are executed in the main loop:
+
+```rust
+
+WindowEvent::RedrawRequested => {
+    self.world.update();
+    for system in self.systems.iter_mut() {
+        system(&mut self.world, &mut self.renderer);
+    }
+    self.window.window.request_redraw();
+}
+```
+
+### Getting something on the screen
+
+The builting render system [`render_system.rs`](src/builtins/systems/render_system.rs) is hacked together for now, and it renders a cube!
+
+![Cube]()
+
+However, this current `render_system` does not abstract away any of the `wgpu` boilerplate, and so we do not yet have an extensible and ergonomic rendering API. This will be a focus in the near future.
+
+A valuable resource for researching how to do this is [nannou](https://github.com/nannou-org/nannou), which provides an abstraction layer over `wgpu`.
+
 ## 2024-04-03
 
 ### A naive ECS implementation

@@ -1,4 +1,4 @@
-use crate::ecs::World;
+use crate::ecs::{system::System, World};
 use crate::render::Renderer;
 use crate::window::Window;
 use winit::{event::Event, event::WindowEvent};
@@ -7,7 +7,7 @@ pub struct App {
     window: Window,
     pub renderer: Renderer,
     pub world: World,
-    systems: Vec<Box<dyn FnMut(&mut World, &mut Renderer)>>,
+    systems: Vec<System>,
 }
 
 impl App {
@@ -23,7 +23,7 @@ impl App {
         }
     }
 
-    pub fn add_system(&mut self, system: Box<dyn FnMut(&mut World, &mut Renderer)>) {
+    pub fn add_system(&mut self, system: System) {
         self.systems.push(system);
     }
 
