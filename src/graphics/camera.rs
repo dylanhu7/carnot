@@ -64,7 +64,6 @@ impl CameraUniform {
     }
 
     pub fn from_inv_view_proj(inv_view: &Mat4, proj: &Mat4) -> Self {
-        dbg!(inv_view.w_axis);
         Self {
             view_proj: (*proj * inv_view.inverse()).to_cols_array_2d(),
             camera_pos: inv_view.w_axis.to_array(),

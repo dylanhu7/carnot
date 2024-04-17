@@ -3,13 +3,14 @@ use wgpu::util::DeviceExt;
 use crate::graphics::camera::CameraUniform;
 use crate::graphics::mesh::MeshVertex;
 use crate::graphics::{Mesh, PerspectiveCamera, Transform};
+use crate::input::InputState;
 use crate::render::render_pass::RenderPassBuilder;
 use crate::render::vertex::Vertex;
 use crate::{ecs::World, render::Renderer};
 
 pub struct ActiveCamera;
 
-pub fn render_system(world: &mut World, renderer: &mut Renderer) {
+pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputState) {
     let camera_vec = world.borrow_component_vec::<PerspectiveCamera>().unwrap();
     let active_camera_vec = world.borrow_component_vec::<ActiveCamera>().unwrap();
     let transforms_vec = world.borrow_component_vec::<Transform>().unwrap();
