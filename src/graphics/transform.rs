@@ -29,3 +29,25 @@ impl From<&glam::Mat4> for Transform {
         Self(*mat)
     }
 }
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Mat4Uniform {
+    model: [[f32; 4]; 4],
+}
+
+impl From<Transform> for Mat4Uniform {
+    fn from(transform: Transform) -> Self {
+        Self {
+            model: transform.0.to_cols_array_2d(),
+        }
+    }
+}
+
+impl From<&Transform> for Mat4Uniform {
+    fn from(transform: &Transform) -> Self {
+        Self {
+            model: transform.0.to_cols_array_2d(),
+        }
+    }
+}

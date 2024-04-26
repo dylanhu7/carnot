@@ -1,11 +1,13 @@
+use crate::builtins::systems::ActiveCamera;
 use crate::ecs::{system::System, World};
+use crate::graphics::PerspectiveCamera;
 use crate::input::InputState;
 use crate::render::Renderer;
 use crate::window::Window;
 use winit::{event::Event, event::WindowEvent};
 
 pub struct App {
-    window: Window,
+    pub window: Window,
     pub renderer: Renderer,
     pub world: World,
     systems: Vec<System>,
@@ -15,14 +17,22 @@ pub struct App {
 impl App {
     pub async fn new(width: u32, height: u32, title: &str) -> Self {
         let window = Window::new(width, height, title);
-        window.window.set_cursor_visible(false);
-        window
-            .window
-            .set_cursor_position(winit::dpi::PhysicalPosition::new(
-                width as f64 / 2.0,
-                height as f64 / 2.0,
-            ))
-            .expect("Failed to set cursor position");
+        // window.window.set_cursor_visible(false);
+        // window
+        //     .window
+        //     .set_cursor_position(winit::dpi::PhysicalPosition::new(
+        //         width as f64 / 2.0,
+        //         height as f64 / 2.0,
+        //     ))
+        //     .expect("Failed to set cursor position");
+        // window
+        //     .window
+        //     .set_cursor_grab(winit::window::CursorGrabMode::Locked);
+        // let video_modes = window.window.current_monitor().unwrap().video_modes();
+        // let video_mode = video_modes
+        // .max_by_key(|mode| mode.size().width * mode.size().height)
+        // .unwrap();
+        // dbg!("Setting fullscreen mode to {:?}", &video_mode);
         let renderer = Renderer::new(&window.window).await;
 
         Self {
@@ -75,6 +85,26 @@ impl App {
                     }
                     WindowEvent::Resized(physical_size) => {
                         self.renderer.resize(physical_size);
+                        let mut active_camera_vec = self
+                            .world
+                            .borrow_component_vec_mut::<ActiveCamera>()
+                            .unwrap();
+                        let mut perspective_camera_vec = self
+                            .world
+                            .borrow_component_vec_mut::<PerspectiveCamera>()
+                            .unwrap();
+                        let (_, camera) = active_camera_vec
+                            .iter_mut()
+                            .zip(perspective_camera_vec.iter_mut())
+                            .filter(|(_, camera)| camera.is_some())
+                            .filter_map(|(active, camera)| {
+                                Some((active.as_mut()?, camera.as_mut()?))
+                            })
+                            .next()
+                            .expect("No active camera found");
+                        camera.update_aspect_ratio(
+                            physical_size.width as f32 / physical_size.height as f32,
+                        );
                     }
                     WindowEvent::ScaleFactorChanged { .. } => {
                         // Update the window size

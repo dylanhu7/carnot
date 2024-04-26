@@ -73,7 +73,6 @@ The builting render system [`render_system.rs`](src/builtins/systems/render_syst
 
 ![Cube](https://github.com/dylanhu7/carnot/assets/45575415/a6743071-d07a-4fd4-a5f0-999efa797722)
 
-
 However, this current `render_system` does not abstract away any of the `wgpu` boilerplate, and so we do not yet have an extensible and ergonomic rendering API. This will be a focus in the near future.
 
 A valuable resource for researching how to do this is [nannou](https://github.com/nannou-org/nannou), which provides an abstraction layer over `wgpu`.
@@ -322,15 +321,3 @@ At this point, I am still researching render graph systems to gain a high-level 
 - [Ponies and Light: Rendergraphs and how to implement one](https://poniesandlight.co.uk/reflect/island_rendergraph_1/)
 - [Ponies and Light: Vulkan Render-Queues and how they Sync](https://poniesandlight.co.uk/reflect/island_rendergraph_2/)
 - [GPU synchronization in Godot 4.3 is getting a major upgrade](https://godotengine.org/article/rendering-acyclic-graph/)
-
-```
-
-```
-
-```
-
-```
-
-```
-
-```

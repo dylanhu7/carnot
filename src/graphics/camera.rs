@@ -10,7 +10,7 @@ pub struct PerspectiveCamera {
     /// The far clipping plane of the camera.
     far: f32,
     /// The most recently calculated projection matrix of the camera.
-    pub projection_matrix: Mat4,
+    projection_matrix: Mat4,
 }
 
 impl PerspectiveCamera {
@@ -35,8 +35,56 @@ impl PerspectiveCamera {
         }
     }
 
-    fn compute_projection_matrix(fov: f32, aspect_ratio: f32, near: f32, far: f32) -> Mat4 {
+    pub fn get_aspect_ratio(&self) -> f32 {
+        self.aspect_ratio
+    }
+
+    pub fn get_fov(&self) -> f32 {
+        self.fov
+    }
+
+    pub fn get_near(&self) -> f32 {
+        self.near
+    }
+
+    pub fn get_far(&self) -> f32 {
+        self.far
+    }
+
+    pub fn get_projection_matrix(&self) -> Mat4 {
+        self.projection_matrix
+    }
+
+    pub fn compute_projection_matrix(fov: f32, aspect_ratio: f32, near: f32, far: f32) -> Mat4 {
         Mat4::perspective_rh(fov, aspect_ratio, near, far)
+    }
+
+    pub fn update_aspect_ratio(&mut self, aspect_ratio: f32) {
+        self.aspect_ratio = aspect_ratio;
+        self.projection_matrix =
+            Self::compute_projection_matrix(self.fov, aspect_ratio, self.near, self.far);
+    }
+
+    pub fn update_fov(&mut self, fov: f32) {
+        self.fov = fov.to_radians();
+        self.projection_matrix = Self::compute_projection_matrix(
+            fov.to_radians(),
+            self.aspect_ratio,
+            self.near,
+            self.far,
+        );
+    }
+
+    pub fn update_near(&mut self, near: f32) {
+        self.near = near;
+        self.projection_matrix =
+            Self::compute_projection_matrix(self.fov, self.aspect_ratio, near, self.far);
+    }
+
+    pub fn update_far(&mut self, far: f32) {
+        self.far = far;
+        self.projection_matrix =
+            Self::compute_projection_matrix(self.fov, self.aspect_ratio, self.near, far);
     }
 
     pub fn update(&mut self, aspect_ratio: f32, fov: f32, near: f32, far: f32) {

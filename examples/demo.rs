@@ -17,13 +17,17 @@ async fn main() {
         .add_component_to_entity::<Mesh>(cube, Primitive::spawn(Primitive::CUBE));
     app.world.add_component_to_entity::<Transform>(
         cube,
-        Transform::from(Mat4::from_translation(Vec3::new(0.0, 0.0, 0.0))),
+        Transform::from(Mat4::from_translation(Vec3::new(0.0, 0.0, -2.0))),
+        // Mat4::IDENTITY.into(),
     );
 
-    let camera = PerspectiveCamera::new(800.0 / 600.0, 103.0, 0.1, 100.0);
+    let size = app.window.monitor.size();
+    let (width, height) = (size.width, size.height);
+
+    let camera = PerspectiveCamera::new(width as f32 / height as f32, 103.0, 0.1, 100.0);
     let camera_transform = Transform::from(
         Mat4::look_to_rh(
-            glam::Vec3::new(0.0, 0.0, 3.0),
+            glam::Vec3::new(0.0, 0.0, 0.0),
             glam::Vec3::new(0.0, 0.0, -1.0),
             glam::Vec3::new(0.0, 1.0, 0.0),
         )
