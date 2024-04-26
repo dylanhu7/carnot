@@ -1,5 +1,180 @@
 # Carnot Development Log
 
+## 2024-04-17
+
+### Input handling and camera movement
+
+#### Reading input events
+
+I have implemented a simple input handling system that reads events from `winit` and updates an `InputState` struct to be read by systems. The `InputState` struct looks like:
+
+```rust
+pub struct InputState {
+    pub keys: HashSet<Key>,
+    pub mouse_position: PhysicalPosition<f64>,
+    pub last_mouse_position: Option<PhysicalPosition<f64>>,
+    pub mouse_delta: (f64, f64),
+    pub mouse_wheel_delta: MouseScrollDelta,
+}
+```
+
+Parsing events from `winit` is a bit tedious though:
+
+```rust
+match event {
+    Event::DeviceEvent { event, .. } => match event {
+        winit::event::DeviceEvent::MouseMotion { delta } => {
+            self.input_state.mouse_delta = delta;
+        }
+        winit::event::DeviceEvent::MouseWheel { delta } => {
+            self.input_state.mouse_wheel_delta = delta;
+        }
+        _ => {}
+    },
+    Event::WindowEvent { event, .. } => match event {
+        WindowEvent::KeyboardInput { event, .. } => {
+            if event.state == winit::event::ElementState::Pressed {
+                self.input_state.keys.insert(event.logical_key);
+            } else {
+                self.input_state.keys.remove(&event.logical_key);
+            }
+        }
+        WindowEvent::CursorMoved { position, .. } => {
+            self.input_state.last_mouse_position =
+                Some(self.input_state.mouse_position);
+            self.input_state.mouse_position = position;
+        }
+    }
+}
+```
+
+#### Camera movement
+
+For now, I've decided to approach camera movement a bit differently than I normally would have. Since the camera is represented as an entity in our ECS system, it has a `Transform` component (a 4x4 matrix) that represents its position and orientation in the world. Consequently, the `PerspectiveCamera` struct only represents the camera's intrinsics (field of view, aspect ratio, near and far planes) and can produce its projection matrix.
+
+##### Anatomy of a transform
+
+At least in introductory computer graphics (to my knowledge), the camera is usually represented by storing its position in world space (eye), look direction or target point, and up vector. These vectors are modified as the camera moves and turns, and a view matrix is produced from them (for example, using `glm`'s `lookAt` function or `glam::look_at_rh`). The view matrix brings the world into the camera's view (it's a camera-to-world transformation), so the inverse of the camera's `Transform` matrix (which brings the camera into world space) is the view matrix. In fact, we generate the initial `Transform` for the camera by taking the inverse of a view matrix, as it's convenient to generate a view matrix using a position, look direction, and up vector using our linear algebra library `glam`.
+
+What's interesting is that when using the `Transform` as our representation instead of eye/look/up, we can perform translations and rotations in a fairly intuitive way, relying on the structure of the matrix directly.
+
+You might be familiar with 4x4 transformation matrices that look like this:
+
+$$
+\begin{bmatrix}
+r_{00} & r_{01} & r_{02} & t_x \\
+r_{10} & r_{11} & r_{12} & t_y \\
+r_{20} & r_{21} & r_{22} & t_z \\
+0 & 0 & 0 & 1
+\end{bmatrix}
+$$
+
+Here, $r$ is the rotation part of the matrix and $t$ is the translation part. The rotation part is an orthonormal 3x3 matrix that represents the rotation of the object, and the translation part is a vector that represents the position of the object.
+
+The first three columns are the basis vectors of the object's local space, and the fourth column is the position of the object in world space. If the camera is in its canonical position (at the world space origin) and orientation (looking down the negative world space z-axis, the up direction the world space y-axis, and the right direction the world space x-axis), then the matrix would simply be the identity matrix:
+
+$$
+\begin{bmatrix}
+1 & 0 & 0 & 0 \\
+0 & 1 & 0 & 0 \\
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & 1
+\end{bmatrix}
+$$
+
+If we translated the camera 3 units forward in the negative-z direction and then rotated it 90 degrees around the y-axis (so that it now looks down the positive x-axis), the matrix would look like this:
+
+$$
+\begin{bmatrix}
+0 & 0 & -1 & 0 \\
+0 & 1 & 0 & 0 \\
+1 & 0 & 0 & -3 \\
+0 & 0 & 0 & 1
+\end{bmatrix}
+$$
+
+We can see that now the camera's local x-axis (its right vector) has changed from being aligned with the global x-axis to being aligned with the global z-axis, and the other local axes have also changed accordingly. The translation part of the matrix has moved the camera 3 units in the negative z-direction.
+
+Note that the order we chose — translation first, then rotation — is important. If we had rotated the camera first, then the translation would have been applied in the rotated space, and the camera would have moved in the direction of the rotated z-axis.
+
+##### Implementing camera movement
+
+Thankfully, our linear algebra library provides direct access to the columns of the matrix. We can perform translations and rotations by modifying these columns directly.
+
+To handle WASD input for camera movement, we can derive the cumulative translation vector by composing the columns and adding it to the translation part of the matrix.
+
+```rust
+const SPEED: f32 = 0.05;
+let mut dir = glam::Vec4::ZERO;
+
+if input_state.keys.contains(&Key::Character("w".into())) {
+    dir += -transform.0.z_axis;
+}
+if input_state.keys.contains(&Key::Character("s".into())) {
+    dir += transform.0.z_axis;
+}
+if input_state.keys.contains(&Key::Character("a".into())) {
+    dir += -transform.0.x_axis;
+}
+if input_state.keys.contains(&Key::Character("d".into())) {
+    dir += transform.0.x_axis;
+}
+
+dir = dir.normalize_or_zero();
+
+transform.0.w_axis += dir * SPEED;
+```
+
+Handling camera rotation based on mouse movement is a little more complicated, but still highly interpretable when using this representation!
+
+Let's take a look at how first-person camera controls might be implemented:
+
+```rust
+const SENSITIVITY: f32 = 0.01;
+let (dx, dy) = (-input_state.mouse_delta.0, -input_state.mouse_delta.1);
+
+// first-person controls
+let (scale, rot, trans) = transform.0.to_scale_rotation_translation();
+let horizontal_rotation = glam::Quat::from_axis_angle(glam::Vec3::Y, dx as f32 * SENSITIVITY);
+let mut vertical_rotation =
+    glam::Quat::from_axis_angle(transform.0.x_axis.truncate(), dy as f32 * SENSITIVITY);
+```
+
+We construct the horizontal rotation quaternion to be around the global y-axis instead of the camera's local y-axis. You can imagine that if the player were looking straight down, the local y-axis would be parallel to the ground, and rotating about it would cause the camera to look up, which is not what we want.
+
+The vertical rotation quaternion is constructed around the camera's local x-axis. This is because the local x-axis rotates along with the camera, so this will always produce the correct rotation regardless of which way the camera is currently facing.
+
+However, there's one problem: the vertical rotation can cause the camera to flip upside down. Almost always in first-person games, if the player keeps moving their mouse up or down, the camera is not allowed to rotate past looking straight up or straight down.
+
+To fix this, we can leverage that the matrix representation affords us direct access to the local coordinate frame of the camera. We can apply the intended vertical rotation to the camera's local negative z-axis (the direction the camera is looking) and check if that new local z-axis is in front of or behind the plane created by the local x-axis and the global y-axis. This check can be done by computing the dot product of the new local z-axis with the normal to that plane which is given by the cross product of the vectors which form that plane. If the dot product is negative, then the new local z-axis is behind the plane, and we should clamp the rotation.
+
+```rust
+let new_z = vertical_rotation * transform.0.z_axis.truncate();
+
+if new_z.dot(transform.0.x_axis.truncate().cross(glam::Vec3::Y)) < 0.0 {
+    let dir = if -new_z.y > 0.0 {
+        glam::Vec3::Y
+    } else {
+        glam::Vec3::NEG_Y
+    };
+    vertical_rotation = glam::Quat::from_rotation_arc(-transform.0.z_axis.truncate(), dir)
+}
+```
+
+Now, we can update the transform matrix.
+
+```rust
+let new_transform = glam::Mat4::from_scale_rotation_translation(
+    scale,
+    horizontal_rotation * vertical_rotation * rot,
+    trans,
+);
+
+transform.0 = new_transform;
+```
+
+And now this camera can move and look around in a first-person perspective!
+
 ## 2024-04-16
 
 ### Simple systems

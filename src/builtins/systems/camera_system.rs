@@ -6,7 +6,6 @@ use crate::{
 };
 
 pub fn camera_system(world: &mut World, _: &mut Renderer, input_state: &mut InputState) {
-    const SPEED: f32 = 0.05;
     let mut transform_vec = world.borrow_component_vec_mut::<Transform>().unwrap();
     let mut active_camera_vec = world.borrow_component_vec_mut::<ActiveCamera>().unwrap();
     let transform = transform_vec
@@ -17,6 +16,7 @@ pub fn camera_system(world: &mut World, _: &mut Renderer, input_state: &mut Inpu
         .next()
         .expect("No active camera found");
 
+    const SPEED: f32 = 0.05;
     let mut dir = glam::Vec4::ZERO;
 
     if input_state.keys.contains(&Key::Character("w".into())) {
@@ -32,10 +32,11 @@ pub fn camera_system(world: &mut World, _: &mut Renderer, input_state: &mut Inpu
         dir += transform.0.x_axis;
     }
 
+    dir = dir.normalize_or_zero();
+
     transform.0.w_axis += dir * SPEED;
 
     const SENSITIVITY: f32 = 0.01;
-
     let (dx, dy) = (-input_state.mouse_delta.0, -input_state.mouse_delta.1);
 
     // first-person controls

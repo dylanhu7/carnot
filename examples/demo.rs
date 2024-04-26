@@ -18,7 +18,6 @@ async fn main() {
     app.world.add_component_to_entity::<Transform>(
         cube,
         Transform::from(Mat4::from_translation(Vec3::new(0.0, 0.0, -2.0))),
-        // Mat4::IDENTITY.into(),
     );
 
     let size = app.window.monitor.size();
