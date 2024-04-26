@@ -175,6 +175,8 @@ transform.0 = new_transform;
 
 And now this camera can move and look around in a first-person perspective!
 
+https://github.com/dylanhu7/carnot/assets/45575415/a4483cf1-4fc3-46f0-ac4d-74ef745d09f6
+
 ## 2024-04-16
 
 ### Simple systems
