@@ -2,15 +2,15 @@ use std::sync::Arc;
 
 use winit::{
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    window::WindowAttributes,
 };
 
 pub struct Window {
     pub event_loop: EventLoop<()>,
     pub window: Arc<winit::window::Window>,
     pub monitor: winit::monitor::MonitorHandle,
-    pub video_mode: winit::monitor::VideoMode,
-    pub video_modes: Vec<winit::monitor::VideoMode>,
+    pub video_mode: winit::monitor::VideoModeHandle,
+    pub video_modes: Vec<winit::monitor::VideoModeHandle>,
 }
 
 impl Window {
@@ -18,7 +18,7 @@ impl Window {
         let event_loop = EventLoop::new().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
 
-        let monitor = event_loop.primary_monitor().unwrap();
+        let monitor = event_loop.owned_display_handle();
         let video_modes = monitor.video_modes().collect::<Vec<_>>();
         let video_mode = video_modes.first().unwrap().clone();
         // for mode in &video_modes {
@@ -29,7 +29,7 @@ impl Window {
         //         mode.refresh_rate_millihertz()
         //     );
         // }
-        let window = WindowBuilder::new()
+        let window = WindowAttributes::new()
             .with_title(title)
             // .with_maximized(true)
             // .with_fullscreen(Some(winit::window::Fullscreen::Exclusive(video_mode)))

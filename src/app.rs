@@ -3,45 +3,50 @@ use crate::ecs::{system::System, World};
 use crate::graphics::PerspectiveCamera;
 use crate::input::InputState;
 use crate::render::Renderer;
-use crate::window::Window;
-use winit::{event::Event, event::WindowEvent};
+// use crate::window::Window;
+use std::sync::Arc;
+use tokio::runtime::Runtime;
+use winit::{
+    application::ApplicationHandler,
+    event::WindowEvent,
+    event_loop::ControlFlow,
+    event_loop::{ActiveEventLoop, EventLoop},
+    window::Window,
+};
 
-pub struct App {
-    pub window: Window,
-    pub renderer: Renderer,
+pub struct App<'a> {
+    title: String,
+    pub window: Option<Arc<Window>>,
+    pub renderer: Option<Renderer<'a>>,
     pub world: World,
-    systems: Vec<System>,
-    input_state: InputState,
+    pub systems: Vec<System>,
+    pub input_state: InputState,
 }
 
-impl App {
-    pub async fn new(width: u32, height: u32, title: &str) -> Self {
-        let window = Window::new(width, height, title);
-        // window.window.set_cursor_visible(false);
-        // window
-        //     .window
-        //     .set_cursor_position(winit::dpi::PhysicalPosition::new(
-        //         width as f64 / 2.0,
-        //         height as f64 / 2.0,
-        //     ))
-        //     .expect("Failed to set cursor position");
-        // window
-        //     .window
-        //     .set_cursor_grab(winit::window::CursorGrabMode::Locked);
-        // let video_modes = window.window.current_monitor().unwrap().video_modes();
-        // let video_mode = video_modes
-        // .max_by_key(|mode| mode.size().width * mode.size().height)
-        // .unwrap();
-        // dbg!("Setting fullscreen mode to {:?}", &video_mode);
-        let renderer = Renderer::new(&window.window).await;
-
+impl Default for App<'_> {
+    fn default() -> Self {
         Self {
-            window,
-            renderer,
-            world: World::new(),
-            systems: vec![],
-            input_state: InputState::default(),
+            title: "Carnot Application".to_string(),
+            window: Default::default(),
+            renderer: Default::default(),
+            world: Default::default(),
+            systems: Default::default(),
+            input_state: Default::default(),
         }
+    }
+}
+
+impl<'a> App<'a> {
+    pub fn new(title: &str) -> Self {
+        Self {
+            title: title.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn init_renderer(window: Arc<Window>) -> Renderer<'a> {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async { Renderer::new(window).await })
     }
 
     pub fn add_system(&mut self, system: System) {
@@ -49,72 +54,98 @@ impl App {
     }
 
     pub fn run(mut self) {
-        let _ = self.window.event_loop.run(move |event, elwt| {
-            match event {
-                Event::DeviceEvent { event, .. } => match event {
-                    winit::event::DeviceEvent::MouseMotion { delta } => {
-                        self.input_state.mouse_delta = delta;
-                    }
-                    winit::event::DeviceEvent::MouseWheel { delta } => {
-                        self.input_state.mouse_wheel_delta = delta;
-                    }
-                    _ => {}
-                },
-                Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::RedrawRequested => {
-                        for system in self.systems.iter() {
-                            system(&mut self.world, &mut self.renderer, &mut self.input_state);
-                        }
-                        self.window.window.request_redraw();
-                    }
-                    WindowEvent::KeyboardInput { event, .. } => {
-                        if event.state == winit::event::ElementState::Pressed {
-                            self.input_state.keys.insert(event.logical_key);
-                        } else {
-                            self.input_state.keys.remove(&event.logical_key);
-                        }
-                    }
-                    WindowEvent::CursorMoved { position, .. } => {
-                        self.input_state.last_mouse_position =
-                            Some(self.input_state.mouse_position);
-                        self.input_state.mouse_position = position;
-                    }
-                    WindowEvent::CloseRequested => {
-                        // Close the window
-                        elwt.exit();
-                    }
-                    WindowEvent::Resized(physical_size) => {
-                        self.renderer.resize(physical_size);
-                        let mut active_camera_vec = self
-                            .world
-                            .borrow_component_vec_mut::<ActiveCamera>()
-                            .unwrap();
-                        let mut perspective_camera_vec = self
-                            .world
-                            .borrow_component_vec_mut::<PerspectiveCamera>()
-                            .unwrap();
-                        let (_, camera) = active_camera_vec
-                            .iter_mut()
-                            .zip(perspective_camera_vec.iter_mut())
-                            .filter(|(_, camera)| camera.is_some())
-                            .filter_map(|(active, camera)| {
-                                Some((active.as_mut()?, camera.as_mut()?))
-                            })
-                            .next()
-                            .expect("No active camera found");
-                        camera.update_aspect_ratio(
-                            physical_size.width as f32 / physical_size.height as f32,
-                        );
-                    }
-                    WindowEvent::ScaleFactorChanged { .. } => {
-                        // Update the window size
-                        // ...
-                    }
-                    _ => {}
-                },
-                Event::AboutToWait { .. } => {}
-                _ => {}
+        let event_loop = EventLoop::new().unwrap();
+        event_loop.set_control_flow(ControlFlow::Poll);
+        let _ = event_loop.run_app(&mut self);
+    }
+}
+
+impl ApplicationHandler for App<'_> {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        let mut attributes = Window::default_attributes();
+        attributes.title = self.title.clone();
+        let window = Arc::new(event_loop.create_window(attributes).unwrap());
+        self.renderer = Some(Self::init_renderer(window.clone()));
+        self.window = Some(window);
+    }
+
+    fn window_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: WindowEvent,
+    ) {
+        // if window_id != self.window.as_ref().unwrap().id() {
+        //     return;
+        // }
+        match event {
+            WindowEvent::RedrawRequested => {
+                for system in self.systems.iter() {
+                    system(
+                        &mut self.world,
+                        self.renderer.as_mut().unwrap(),
+                        &mut self.input_state,
+                    );
+                }
+                self.renderer.as_ref().unwrap().window.request_redraw();
             }
-        });
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.state == winit::event::ElementState::Pressed {
+                    self.input_state.keys.insert(event.logical_key);
+                } else {
+                    self.input_state.keys.remove(&event.logical_key);
+                }
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.input_state.last_mouse_position = Some(self.input_state.mouse_position);
+                self.input_state.mouse_position = position;
+            }
+            WindowEvent::CloseRequested => {
+                // Close the window
+                event_loop.exit();
+            }
+            WindowEvent::Resized(physical_size) => {
+                self.renderer.as_mut().unwrap().resize(physical_size);
+                let mut active_camera_vec = self
+                    .world
+                    .borrow_component_vec_mut::<ActiveCamera>()
+                    .unwrap();
+                let mut perspective_camera_vec = self
+                    .world
+                    .borrow_component_vec_mut::<PerspectiveCamera>()
+                    .unwrap();
+                let (_, camera) = active_camera_vec
+                    .iter_mut()
+                    .zip(perspective_camera_vec.iter_mut())
+                    .filter(|(_, camera)| camera.is_some())
+                    .filter_map(|(active, camera)| Some((active.as_mut()?, camera.as_mut()?)))
+                    .next()
+                    .expect("No active camera found");
+                camera
+                    .update_aspect_ratio(physical_size.width as f32 / physical_size.height as f32);
+            }
+            WindowEvent::ScaleFactorChanged { .. } => {
+                // Update the window size
+                // ...
+            }
+            _ => {}
+        }
+    }
+
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        match event {
+            winit::event::DeviceEvent::MouseMotion { delta } => {
+                self.input_state.mouse_delta = delta;
+            }
+            winit::event::DeviceEvent::MouseWheel { delta } => {
+                self.input_state.mouse_wheel_delta = delta;
+            }
+            _ => {}
+        }
     }
 }

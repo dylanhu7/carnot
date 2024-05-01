@@ -103,6 +103,7 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputSt
             module: &shader,
             entry_point: "vs_main",
             buffers: &[MeshVertex::desc()],
+            compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader,
@@ -115,6 +116,7 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputSt
                 }),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
+            compilation_options: Default::default(),
         }),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
