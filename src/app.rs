@@ -75,9 +75,6 @@ impl ApplicationHandler for App<'_> {
         _window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
-        // if window_id != self.window.as_ref().unwrap().id() {
-        //     return;
-        // }
         match event {
             WindowEvent::RedrawRequested => {
                 for system in self.systems.iter() {

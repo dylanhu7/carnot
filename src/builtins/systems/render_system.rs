@@ -6,6 +6,7 @@ use crate::graphics::transform::Mat4Uniform;
 use crate::graphics::{Mesh, PerspectiveCamera, Transform};
 use crate::input::InputState;
 use crate::render::render_pass::RenderPassBuilder;
+use crate::render::texture;
 use crate::render::vertex::Vertex;
 use crate::{ecs::World, render::Renderer};
 
@@ -131,7 +132,13 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputSt
             // Requires Features::CONSERVATIVE_RASTERIZATION
             conservative: false,
         },
-        depth_stencil: None,
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }),
         multisample: wgpu::MultisampleState {
             count: 1,
             mask: !0,
@@ -146,6 +153,11 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputSt
     let render_pass_builder = RenderPassBuilder::new();
     let surface_texture = renderer.context.surface.get_current_texture().unwrap();
     let view = Renderer::get_current_texture_view(&surface_texture);
+    let depth_texture = texture::Texture::create_depth_texture(
+        &renderer.context.device,
+        &renderer.context.config,
+        "depth_texture",
+    );
 
     let vertex_buffers: Vec<_> = models
         .clone()
@@ -199,6 +211,7 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputSt
     {
         let mut render_pass = render_pass_builder
             .color_attachment(&view)
+            .depth_stencil_attachment(&depth_texture.view)
             .begin_render_pass(&mut encoder, None);
         render_pass.set_pipeline(&render_pipeline);
         render_pass.set_bind_group(0, &camera_bind_group, &[]);

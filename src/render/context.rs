@@ -77,10 +77,5 @@ impl<'a> RenderContext<'a> {
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
         }
-        // self.depth_texture = Texture::create_depth_texture(
-        //     &self.context.device,
-        //     &self.context.config,
-        //     "depth_texture",
-        // );
     }
 }
