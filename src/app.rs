@@ -1,9 +1,9 @@
 use crate::builtins::systems::ActiveCamera;
+use crate::ecs::system::{BoxedSystem, IntoSystem, SystemParam};
 use crate::ecs::{system::System, World};
 use crate::graphics::PerspectiveCamera;
 use crate::input::InputState;
 use crate::render::Renderer;
-// use crate::window::Window;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::{
@@ -19,7 +19,7 @@ pub struct App<'a> {
     pub window: Option<Arc<Window>>,
     pub renderer: Option<Renderer<'a>>,
     pub world: World,
-    pub systems: Vec<System>,
+    pub systems: Vec<BoxedSystem>,
     pub input_state: InputState,
 }
 
@@ -49,8 +49,8 @@ impl<'a> App<'a> {
         rt.block_on(async { Renderer::new(window).await })
     }
 
-    pub fn add_system(&mut self, system: System) {
-        self.systems.push(system);
+    pub fn add_system<F: IntoSystem<Params>, Params: SystemParam>(&mut self, function: F) {
+        self.systems.push(Box::new(function.into_system()));
     }
 
     pub fn run(mut self) {
@@ -77,12 +77,8 @@ impl ApplicationHandler for App<'_> {
     ) {
         match event {
             WindowEvent::RedrawRequested => {
-                for system in self.systems.iter() {
-                    system(
-                        &mut self.world,
-                        self.renderer.as_mut().unwrap(),
-                        &mut self.input_state,
-                    );
+                for system in self.systems.iter_mut() {
+                    system.run(&mut self.world);
                 }
                 self.renderer.as_ref().unwrap().window.request_redraw();
             }
@@ -115,8 +111,7 @@ impl ApplicationHandler for App<'_> {
                     .iter_mut()
                     .zip(perspective_camera_vec.iter_mut())
                     .filter(|(_, camera)| camera.is_some())
-                    .filter_map(|(active, camera)| Some((active.as_mut()?, camera.as_mut()?)))
-                    .next()
+                    .find_map(|(active, camera)| Some((active.as_mut()?, camera.as_mut()?)))
                     .expect("No active camera found");
                 camera
                     .update_aspect_ratio(physical_size.width as f32 / physical_size.height as f32);

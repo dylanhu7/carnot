@@ -52,8 +52,8 @@ fn main() {
     app.world
         .add_component_to_entity::<ActiveCamera>(camera_entity, ActiveCamera);
 
-    app.add_system(Box::new(render_system));
-    app.add_system(Box::new(camera_system));
+    app.add_system(render_system);
+    app.add_system(camera_system);
 
     app.run();
 }
