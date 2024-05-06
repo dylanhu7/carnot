@@ -1,7 +1,8 @@
-use super::component::ComponentVec;
 use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
+
+use super::component::ComponentVec;
 
 #[derive(Default)]
 pub struct World {

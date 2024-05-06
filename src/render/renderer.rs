@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
-use super::context;
-use crate::render::context::RenderContext;
 use winit::window::Window;
+
+use crate::render::context::RenderContext;
+
+use super::context;
 
 pub struct Renderer<'a> {
     pub window: Arc<Window>,
