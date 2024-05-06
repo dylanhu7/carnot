@@ -1,14 +1,18 @@
 use super::{SystemParam, SystemParamItem};
 
-pub trait SystemParamFunction<Param: SystemParam>: 'static {
-    fn run(&mut self, param: SystemParamItem<Param>);
+pub trait SystemParamFunction<M>: 'static {
+    type Param: SystemParam;
+
+    fn run(&mut self, param: SystemParamItem<Self::Param>);
 }
 
 impl<F: 'static> SystemParamFunction<()> for F
 where
     for<'w> &'w mut F: FnMut(),
 {
-    fn run(&mut self, param: SystemParamItem<()>) {
+    type Param = ();
+
+    fn run(&mut self, param: SystemParamItem<Self::Param>) {
         fn call_inner(mut f: impl FnMut()) {
             f();
         }
@@ -21,6 +25,8 @@ impl<F: 'static, P1: SystemParam> SystemParamFunction<(P1,)> for F
 where
     for<'w> &'w mut F: FnMut(P1) + FnMut(SystemParamItem<P1>),
 {
+    type Param = (P1,);
+
     fn run(&mut self, param: SystemParamItem<(P1,)>) {
         fn call_inner<P1>(mut f: impl FnMut(P1), p1: P1) {
             f(p1);
@@ -34,6 +40,8 @@ impl<F: 'static, P1: SystemParam, P2: SystemParam> SystemParamFunction<(P1, P2)>
 where
     for<'w> &'w mut F: FnMut(P1, P2) + FnMut(SystemParamItem<P1>, SystemParamItem<P2>),
 {
+    type Param = (P1, P2);
+
     fn run(&mut self, param: SystemParamItem<(P1, P2)>) {
         fn call_inner<P1, P2>(mut f: impl FnMut(P1, P2), p1: P1, p2: P2) {
             f(p1, p2);

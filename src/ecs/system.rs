@@ -1,50 +1,52 @@
 use std::marker::PhantomData;
 
+pub use system_param::{SystemParam, SystemParamItem};
+
 use super::World;
+
+use self::system_param_function::SystemParamFunction;
 
 mod system_param;
 mod system_param_function;
 
-pub use system_param::{SystemParam, SystemParamFetch, SystemParamItem};
-pub use system_param_function::SystemParamFunction;
-
-pub trait System: 'static {
+pub trait System {
     fn run(&mut self, world: &mut World);
 }
 
 pub type BoxedSystem = Box<dyn System>;
 
-pub struct FunctionSystem<F, Param>
+pub struct FunctionSystem<F, M>
 where
-    F: SystemParamFunction<Param>,
-    Param: SystemParam,
+    F: SystemParamFunction<M>,
+    M: 'static,
 {
     func: F,
-    marker: PhantomData<Param>,
+    marker: PhantomData<M>,
 }
 
-impl<F, Param> System for FunctionSystem<F, Param>
+impl<F, M> System for FunctionSystem<F, M>
 where
-    F: SystemParamFunction<Param> + 'static,
-    Param: SystemParam + 'static,
+    F: SystemParamFunction<M>,
+    M: 'static,
 {
     fn run(&mut self, world: &mut World) {
-        let params = <Param as SystemParam>::Fetch::fetch(world);
-        self.func.run(params);
+        let param = F::Param::fetch(world);
+        self.func.run(param);
     }
 }
 
 pub trait IntoSystem<Params> {
     type System: System;
+
     fn into_system(self) -> Self::System;
 }
 
-impl<F, Params> IntoSystem<Params> for F
+impl<F, M> IntoSystem<M> for F
 where
-    F: SystemParamFunction<Params> + 'static,
-    Params: SystemParam + 'static,
+    M: 'static,
+    F: SystemParamFunction<M>,
 {
-    type System = FunctionSystem<F, Params>;
+    type System = FunctionSystem<F, M>;
     fn into_system(self) -> Self::System {
         FunctionSystem {
             func: self,
