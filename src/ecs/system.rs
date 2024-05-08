@@ -36,7 +36,7 @@ where
 }
 
 pub trait IntoSystem<Params> {
-    type System: System;
+    type System: System + 'static;
 
     fn into_system(self) -> Self::System;
 }
