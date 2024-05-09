@@ -1,12 +1,10 @@
 use std::{
-    any::Any,
-    cell::{Ref, RefCell},
+    any::{Any, TypeId},
+    cell::Ref,
     marker::PhantomData,
-    ops::Deref,
-    path::Iter,
 };
 
-use super::{component, system::SystemParam, World};
+use super::{system::SystemParam, World};
 
 /// Want to write systems as functions with parameters like this:
 /// ```rust
@@ -20,75 +18,109 @@ use super::{component, system::SystemParam, World};
 /// or, if you need mutable access to the components:
 /// ```rust
 /// fn system(query: Query<(&Mesh, &mut Transform)>) {
-///     for mesh, transform in &mut query {
+///     for (mesh, transform) in &mut query {
 ///         // mesh is a &Mesh
 ///         // transform is a &mut Transform
 ///         // do something with mesh and transform
 ///     }
 /// }
-pub struct Query<'w, D: QueryData> {
-    world: &'w World,
-    // dense:
+pub struct Query<'q, D: QueryData> {
+    sparse_refs: Vec<Ref<'q, Vec<Option<Box<dyn Any>>>>>,
+    type_ids: Vec<TypeId>,
     marker: PhantomData<D>,
 }
 
-impl<'w, D: QueryData> Query<'w, D> {
-    pub fn new(world: &'w World) -> Self {
-        let sparse = D::fetch_sparse(world);
+impl<'q, D: QueryData> Query<'q, D> {
+    pub fn new(world: &'q World) -> Self {
+        let (sparse_refs, type_ids) = D::get_sparse_refs(world);
         Self {
-            world,
+            sparse_refs,
+            type_ids,
             marker: PhantomData,
         }
     }
 }
 
-impl<D: QueryData + 'static> SystemParam for Query<'_, D> {
+impl<'q, D: QueryData> SystemParam for Query<'q, D> {
     type Item<'a> = Query<'a, D>;
 
-    fn fetch(world: &World) -> Self::Item<'_> {
+    fn fetch<'w>(world: &'w World) -> Self::Item<'_> {
         Query::new(world)
     }
 }
 
-pub trait QueryData {
-    type Item;
-    // type SparseItem<'b>;
-    type Iter<'b>: Iterator<Item = Option<&'b Self::Item>>;
+// implementation of IntoIterator for Query
+impl<'a, D: QueryData> IntoIterator for &'a Query<'a, D> {
+    type Item = D::Item<'a>;
+    type IntoIter = QueryIter<'a, D>;
 
-    fn fetch_sparse(world: &World) -> Self::Iter<'_>;
+    fn into_iter(self) -> Self::IntoIter {
+        QueryIter::new(self)
+    }
+}
+
+pub trait QueryData: Sized {
+    type Item<'a>;
+
+    fn get_sparse_refs(world: &World) -> (Vec<Ref<Vec<Option<Box<dyn Any>>>>>, Vec<TypeId>);
+
+    fn next<'q>(query: &mut QueryIter<'q, Self>) -> Option<Self::Item<'q>>;
 }
 
 // implement QueryData for a reference to a component type
 impl<T: 'static> QueryData for &T {
-    type Item = T;
-    // type SparseItem<'a> = Option<&'a Self::Item>;
-    type Iter<'c> = QueryIter<'c, Self>;
+    type Item<'a> = &'a T;
 
-    fn fetch_sparse(world: &World) -> Self::Iter<'_> {
-        let sparse = world.borrow_component_vec::<T>().unwrap();
-        QueryIter::new(sparse)
+    fn get_sparse_refs(world: &World) -> (Vec<Ref<Vec<Option<Box<dyn Any>>>>>, Vec<TypeId>) {
+        let sparse_refs = world.borrow_component_vec_as_any::<T>().unwrap();
+        let type_id = TypeId::of::<T>();
+        (vec![sparse_refs], vec![type_id])
+    }
+
+    fn next<'q>(iter: &mut QueryIter<'q, Self>) -> Option<Self::Item<'q>> {
+        let sparse_refs = iter.query.sparse_refs;
+        let type_ids = iter.query.type_ids;
+        let index = iter.index;
+
+        if index >= sparse_refs.first().unwrap().len() {
+            return None;
+        }
+
+        let mut sparse_refs_iter = sparse_refs.iter();
+        let mut type_ids_iter = type_ids.iter();
+
+        let sparse_ref = sparse_refs_iter.next().unwrap();
+        let type_id = type_ids_iter.next().unwrap();
+
+        let component = sparse_ref[index]
+            .as_ref()
+            .unwrap()
+            .downcast_ref::<T>()
+            .unwrap();
+        iter.index += 1;
+        Some(component)
     }
 }
 
-struct QueryIter<'a, D: QueryData> {
-    sparse: Ref<'a, Vec<Option<D::Item>>>,
+struct QueryIter<'q, D: QueryData> {
+    query: &'q Query<'q, D>,
     index: usize,
 }
 
-impl<'a, D: QueryData> QueryIter<'a, D> {
-    fn new(sparse: Ref<'a, Vec<Option<D::Item>>>) -> Self {
-        Self { sparse, index: 0 }
+impl<'q, D: QueryData> QueryIter<'q, D> {
+    fn new(query: &'q Query<'q, D>) -> Self {
+        // for sparse_ref in &query.sparse_refs {
+
+        // }
+        Self { query, index: 0 }
     }
 }
 
-impl<'a, D: QueryData> Iterator for QueryIter<'a, D> {
-    type Item = Option<&'a D::Item>;
+impl<'d, D: QueryData> Iterator for QueryIter<'d, D> {
+    type Item = D::Item<'d>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let item = self.sparse.get(self.index)?;
-        self.index += 1;
-        let item = item.as_ref();
-        Some(item)
+        D::next(self)
     }
 }
 

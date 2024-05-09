@@ -7,7 +7,7 @@ use super::component::ComponentVec;
 #[derive(Default)]
 pub struct World {
     pub num_entities: usize,
-    component_vecs: HashMap<TypeId, Box<dyn ComponentVec>>, // HashMap<TypeId, Box<dyn RefCell<Vec<Option<Box<dyn Any>>>>>>
+    component_vecs: HashMap<TypeId, Box<dyn ComponentVec>>, // HashMap<TypeId, Box<RefCell<Vec<Option<Box<dyn Any>>>>>>
     resources: HashMap<TypeId, Box<dyn Any>>,
 }
 
@@ -68,6 +68,19 @@ impl World {
                     .as_any()
                     .downcast_ref::<RefCell<Vec<Option<T>>>>()
                     .map(|component_vec| component_vec.borrow_mut())
+            })
+    }
+
+    pub fn borrow_component_vec_as_any<T: 'static>(
+        &self,
+    ) -> Option<Ref<Vec<Option<Box<dyn Any>>>>> {
+        self.component_vecs
+            .get(&TypeId::of::<T>())
+            .and_then(|component_vec| {
+                component_vec
+                    .as_any()
+                    .downcast_ref::<RefCell<Vec<Option<Box<dyn Any>>>>>()
+                    .map(|component_vec| component_vec.borrow())
             })
     }
 }
