@@ -1,6 +1,8 @@
 mod component;
-mod query;
+pub mod query;
 pub mod system;
 pub mod world;
+
+pub mod resource;
 
 pub use world::World;

@@ -50,3 +50,20 @@ where
         call_inner(self, p1, p2)
     }
 }
+
+impl<F: 'static, P1: SystemParam, P2: SystemParam, P3: SystemParam>
+    SystemParamFunction<(P1, P2, P3)> for F
+where
+    for<'w> &'w mut F:
+        FnMut(P1, P2, P3) + FnMut(SystemParamItem<P1>, SystemParamItem<P2>, SystemParamItem<P3>),
+{
+    type Param = (P1, P2, P3);
+
+    fn run(&mut self, param: SystemParamItem<(P1, P2, P3)>) {
+        fn call_inner<P1, P2, P3>(mut f: impl FnMut(P1, P2, P3), p1: P1, p2: P2, p3: P3) {
+            f(p1, p2, p3);
+        }
+        let (p1, p2, p3) = param;
+        call_inner(self, p1, p2, p3)
+    }
+}

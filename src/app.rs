@@ -1,9 +1,13 @@
 use crate::builtins::systems::ActiveCamera;
-use crate::ecs::system::{BoxedSystem, IntoSystem, SystemParam};
-use crate::ecs::{system::System, World};
+use crate::ecs::query::Query;
+use crate::ecs::resource::ResMut;
+use crate::ecs::system::{BoxedSystem, IntoSystem, System, SystemParam};
+use crate::ecs::World;
 use crate::graphics::PerspectiveCamera;
 use crate::input::InputState;
 use crate::render::Renderer;
+use std::ops::DerefMut;
+use std::rc::Rc;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::{
@@ -14,29 +18,29 @@ use winit::{
     window::Window,
 };
 
-pub struct App<'a> {
+pub struct App {
     title: String,
     pub window: Option<Arc<Window>>,
-    pub renderer: Option<Renderer<'a>>,
+    // pub renderer: Option<Renderer<'a>>>,
     pub world: World,
     pub systems: Vec<BoxedSystem>,
-    pub input_state: InputState,
 }
 
-impl Default for App<'_> {
+impl Default for App {
     fn default() -> Self {
+        let mut world = World::new();
+        world.add_resource(InputState::default());
         Self {
             title: "Carnot Application".to_string(),
             window: Default::default(),
-            renderer: Default::default(),
-            world: Default::default(),
+            // renderer: Default::default(),
+            world,
             systems: Default::default(),
-            input_state: Default::default(),
         }
     }
 }
 
-impl<'a> App<'a> {
+impl App {
     pub fn new(title: &str) -> Self {
         Self {
             title: title.to_string(),
@@ -44,7 +48,7 @@ impl<'a> App<'a> {
         }
     }
 
-    fn init_renderer(window: Arc<Window>) -> Renderer<'a> {
+    pub fn init_renderer(window: Arc<Window>) -> Renderer<'static> {
         let rt = Runtime::new().unwrap();
         rt.block_on(async { Renderer::new(window).await })
     }
@@ -60,12 +64,13 @@ impl<'a> App<'a> {
     }
 }
 
-impl ApplicationHandler for App<'_> {
+impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let mut attributes = Window::default_attributes();
-        attributes.title = self.title.clone();
+        attributes.title.clone_from(&self.title);
         let window = Arc::new(event_loop.create_window(attributes).unwrap());
-        self.renderer = Some(Self::init_renderer(window.clone()));
+        let renderer = Self::init_renderer(window.clone());
+        self.world.add_resource::<Renderer>(renderer);
         self.window = Some(window);
     }
 
@@ -80,39 +85,53 @@ impl ApplicationHandler for App<'_> {
                 for system in self.systems.iter_mut() {
                     system.run(&mut self.world);
                 }
-                self.renderer.as_ref().unwrap().window.request_redraw();
+                // self.renderer.as_ref().unwrap().window.request_redraw();
+                (|renderer: ResMut<Renderer>| renderer.window.request_redraw())
+                    .into_system()
+                    .run(&mut self.world);
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 if event.state == winit::event::ElementState::Pressed {
-                    self.input_state.keys.insert(event.logical_key);
+                    self.world
+                        .get_resource_mut::<InputState>()
+                        .unwrap()
+                        .keys
+                        .insert(event.logical_key);
                 } else {
-                    self.input_state.keys.remove(&event.logical_key);
+                    self.world
+                        .get_resource_mut::<InputState>()
+                        .unwrap()
+                        .keys
+                        .remove(&event.logical_key);
                 }
             }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.input_state.last_mouse_position = Some(self.input_state.mouse_position);
-                self.input_state.mouse_position = position;
-            }
+            // WindowEvent::CursorMoved { position, .. } => {
+            //     self.world
+            //         .get_resource_mut::<InputState>()
+            //         .unwrap()
+            //         .last_mouse_position = Some(
+            //         self.world
+            //             .get_resource_mut::<InputState>()
+            //             .unwrap()
+            //             .mouse_position,
+            //     );
+            //     self.world
+            //         .get_resource_mut::<InputState>()
+            //         .unwrap()
+            //         .mouse_position = position;
+            // }
             WindowEvent::CloseRequested => {
                 // Close the window
                 event_loop.exit();
             }
             WindowEvent::Resized(physical_size) => {
-                self.renderer.as_mut().unwrap().resize(physical_size);
-                let mut active_camera_vec = self
-                    .world
-                    .borrow_component_vec_mut::<ActiveCamera>()
-                    .unwrap();
-                let mut perspective_camera_vec = self
-                    .world
-                    .borrow_component_vec_mut::<PerspectiveCamera>()
-                    .unwrap();
-                let (_, camera) = active_camera_vec
-                    .iter_mut()
-                    .zip(perspective_camera_vec.iter_mut())
-                    .filter(|(_, camera)| camera.is_some())
-                    .find_map(|(active, camera)| Some((active.as_mut()?, camera.as_mut()?)))
-                    .expect("No active camera found");
+                (move |mut renderer: ResMut<Renderer>| renderer.resize(physical_size))
+                    .into_system()
+                    .run(&mut self.world);
+                // self.renderer.as_mut().unwrap().resize(physical_size);
+                let query = Query::<(&ActiveCamera, &PerspectiveCamera)>::fetch(&self.world);
+                let (_, camera) = query.into_iter().next().unwrap();
+                let mut camera = (*camera).borrow_mut();
                 camera
                     .update_aspect_ratio(physical_size.width as f32 / physical_size.height as f32);
             }
@@ -132,10 +151,16 @@ impl ApplicationHandler for App<'_> {
     ) {
         match event {
             winit::event::DeviceEvent::MouseMotion { delta } => {
-                self.input_state.mouse_delta = delta;
+                self.world
+                    .get_resource_mut::<InputState>()
+                    .unwrap()
+                    .mouse_delta = delta;
             }
             winit::event::DeviceEvent::MouseWheel { delta } => {
-                self.input_state.mouse_wheel_delta = delta;
+                self.world
+                    .get_resource_mut::<InputState>()
+                    .unwrap()
+                    .mouse_wheel_delta = delta;
             }
             _ => {}
         }

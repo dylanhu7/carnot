@@ -34,7 +34,7 @@ fn main() {
     // let size = app.window.as_ref().unwrap().inner_size();
     // let (width, height) = (size.width, size.height);
 
-    let camera = PerspectiveCamera::new(800 as f32 / 600 as f32, 103.0, 0.1, 100.0);
+    let camera = PerspectiveCamera::new(800_f32 / 600_f32, 103.0, 0.1, 100.0);
     let camera_transform = Transform::from(
         Mat4::look_to_rh(
             glam::Vec3::new(0.0, 0.0, 0.0),
@@ -54,6 +54,5 @@ fn main() {
 
     app.add_system(render_system);
     app.add_system(camera_system);
-
     app.run();
 }

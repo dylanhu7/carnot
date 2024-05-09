@@ -1,20 +1,21 @@
+use std::ops::DerefMut;
+
 use winit::keyboard::Key;
 
 use crate::{
-    builtins::systems::ActiveCamera, ecs::World, graphics::Transform, input::InputState,
-    render::Renderer,
+    builtins::systems::ActiveCamera,
+    ecs::{query::Query, resource::ResMut},
+    graphics::Transform,
+    input::InputState,
 };
 
-pub fn camera_system(world: &mut World, _: &mut Renderer, input_state: &mut InputState) {
-    let mut transform_vec = world.borrow_component_vec_mut::<Transform>().unwrap();
-    let mut active_camera_vec = world.borrow_component_vec_mut::<ActiveCamera>().unwrap();
-    let transform = transform_vec
-        .iter_mut()
-        .zip(active_camera_vec.iter_mut())
-        .filter(|(_, active)| active.is_some())
-        .filter_map(|(transform, _)| transform.as_mut())
-        .next()
-        .expect("No active camera found");
+pub fn camera_system(
+    mut input_state: ResMut<InputState>,
+    camera: Query<(&Transform, &ActiveCamera)>,
+) {
+    let (transform, _) = camera.into_iter().next().expect("No active camera found");
+    let transform = &mut (*transform.borrow_mut());
+    let input_state = input_state.deref_mut();
 
     const SPEED: f32 = 0.05;
     let mut dir = glam::Vec4::ZERO;

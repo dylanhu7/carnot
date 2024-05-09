@@ -1,36 +1,26 @@
 use wgpu::util::DeviceExt;
 
+use crate::ecs::query::Query;
+use crate::ecs::resource::ResMut;
 use crate::graphics::camera::CameraUniform;
 use crate::graphics::mesh::MeshVertex;
 use crate::graphics::transform::Mat4Uniform;
 use crate::graphics::{Mesh, PerspectiveCamera, Transform};
-use crate::input::InputState;
 use crate::render::render_pass::RenderPassBuilder;
 use crate::render::texture;
 use crate::render::vertex::Vertex;
-use crate::{ecs::World, render::Renderer};
+use crate::render::Renderer;
 
 pub struct ActiveCamera;
 
-pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputState) {
-    let camera_vec = world.borrow_component_vec::<PerspectiveCamera>().unwrap();
-    let active_camera_vec = world.borrow_component_vec::<ActiveCamera>().unwrap();
-    let transforms_vec = world.borrow_component_vec::<Transform>().unwrap();
-
-    let (camera, camera_transform) = camera_vec
-        .iter()
-        .zip(transforms_vec.iter())
-        .zip(active_camera_vec.iter())
-        .filter(|((_, _), active)| active.is_some())
-        .filter_map(|((camera, transform), _)| Some((camera.as_ref()?, transform.as_ref()?)))
-        .next()
-        .expect("No active camera found");
-
-    let meshes = world.borrow_component_vec::<Mesh>().unwrap();
-    let models = meshes
-        .iter()
-        .zip(transforms_vec.iter())
-        .filter_map(|(mesh, transform)| Some((mesh.as_ref()?, transform.as_ref()?)));
+pub fn render_system(
+    renderer: ResMut<Renderer>,
+    models: Query<(&Mesh, &Transform)>,
+    camera: Query<(&PerspectiveCamera, &Transform, &ActiveCamera)>,
+) {
+    let (camera, camera_transform, _) = camera.into_iter().next().expect("No active camera found");
+    let camera = (*camera).borrow();
+    let camera_transform = (*camera_transform).borrow();
 
     let device = &renderer.context.device;
 
@@ -38,9 +28,8 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputSt
         label: Some("Shader"),
         source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/shader.wgsl").into()),
     });
-
     let camera_uniform = CameraUniform::from_inv_view_proj(
-        &camera_transform.into(),
+        &(&*camera_transform).into(),
         &camera.get_projection_matrix(),
     );
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -150,7 +139,6 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputSt
     });
 
     let mut encoder = renderer.create_command_encoder(None);
-    let render_pass_builder = RenderPassBuilder::new();
     let surface_texture = renderer.context.surface.get_current_texture().unwrap();
     let view = Renderer::get_current_texture_view(&surface_texture);
     let depth_texture = texture::Texture::create_depth_texture(
@@ -159,72 +147,50 @@ pub fn render_system(world: &mut World, renderer: &mut Renderer, _: &mut InputSt
         "depth_texture",
     );
 
-    let vertex_buffers: Vec<_> = models
-        .clone()
-        .map(|(mesh, _)| {
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Vertex Buffer"),
-                contents: bytemuck::cast_slice(&mesh.vertices),
-                usage: wgpu::BufferUsages::VERTEX,
-            })
-        })
-        .collect();
+    for (mesh, transform) in models {
+        let mesh = (*mesh).borrow();
+        let transform = (*transform).borrow();
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(&mesh.vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
-    let uniforms: Vec<_> = models
-        .clone()
-        .map(|(_, transform)| {
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Model Buffer"),
-                contents: bytemuck::cast_slice(&[Mat4Uniform::from(transform)]),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            })
-        })
-        .collect();
+        let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Model Buffer"),
+            contents: bytemuck::cast_slice(&[Mat4Uniform::from(&*transform)]),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
 
-    let uniform_bind_groups: Vec<_> = uniforms
-        .iter()
-        .map(|uniform| {
-            device.create_bind_group(&wgpu::BindGroupDescriptor {
-                layout: &model_bind_group_layout,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform.as_entire_binding(),
-                }],
-                label: Some("model_bind_group"),
-            })
-        })
-        .collect();
+        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &model_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform.as_entire_binding(),
+            }],
+            label: Some("model_bind_group"),
+        });
 
-    let index_buffers: Vec<_> = models
-        .clone()
-        .map(|(mesh, _)| {
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
-                contents: bytemuck::cast_slice(&mesh.indices),
-                usage: wgpu::BufferUsages::INDEX,
-            })
-        })
-        .collect();
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(&mesh.indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
 
-    let indices_counts: Vec<_> = models.map(|(mesh, _)| mesh.indices.len() as u32).collect();
+        let num_indices = mesh.indices.len() as u32;
 
-    {
-        let mut render_pass = render_pass_builder
-            .color_attachment(&view)
-            .depth_stencil_attachment(&depth_texture.view)
-            .begin_render_pass(&mut encoder, None);
-        render_pass.set_pipeline(&render_pipeline);
-        render_pass.set_bind_group(0, &camera_bind_group, &[]);
-        for (((vertex_buffer, index_buffer), num_indices), uniform_bind_group) in vertex_buffers
-            .iter()
-            .zip(index_buffers.iter())
-            .zip(indices_counts.iter())
-            .zip(uniform_bind_groups.iter())
         {
-            render_pass.set_bind_group(1, uniform_bind_group, &[]);
+            let render_pass_builder = RenderPassBuilder::new();
+            let mut render_pass = render_pass_builder
+                .color_attachment(&view)
+                .depth_stencil_attachment(&depth_texture.view)
+                .begin_render_pass(&mut encoder, None);
+            render_pass.set_pipeline(&render_pipeline);
+            render_pass.set_bind_group(0, &camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..*num_indices, 0, 0..1);
+            render_pass.draw_indexed(0..num_indices, 0, 0..1);
         }
     }
     renderer
