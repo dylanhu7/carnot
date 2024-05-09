@@ -11,7 +11,7 @@ pub trait ComponentVec {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-impl<T: Any + 'static> ComponentVec for RefCell<Vec<Option<Rc<RefCell<T>>>>> {
+impl<T: Any + 'static> ComponentVec for RefCell<Vec<Option<Rc<T>>>> {
     fn push_none(&mut self) {
         self.get_mut().push(None);
     }
