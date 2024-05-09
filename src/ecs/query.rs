@@ -1,10 +1,4 @@
-use std::{
-    any::{Any, TypeId},
-    borrow::Borrow,
-    cell::{Ref, RefCell},
-    marker::PhantomData,
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 use super::{system::SystemParam, World};
 
@@ -40,42 +34,32 @@ impl<'q, D: QueryData> Query<'q, D> {
 impl<'q, D: QueryData> SystemParam for Query<'q, D> {
     type Item<'a> = Query<'a, D>;
 
-    fn fetch<'w>(world: &'w World) -> Self::Item<'_> {
+    fn fetch(world: &World) -> Self::Item<'_> {
         Query::new(world)
     }
 }
 
 // implementation of IntoIterator for Query
-impl<'a, D: QueryData> IntoIterator for &'a Query<'a, D> {
-    type Item = &'a D::IterItem<'a>;
-    type IntoIter = std::iter::Map<
-        std::slice::Iter<'a, D::Item<'a>>,
-        fn(&'a D::Item<'a>) -> &'a D::IterItem<'a>,
-    >;
+impl<'a, D: QueryData> IntoIterator for Query<'a, D> {
+    type Item = D::Item<'a>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.refs
-            .iter()
-            .map(|component| D::item_to_iter_item(component))
-        // todo!()
+        self.refs.into_iter()
     }
 }
 
 pub trait QueryData: Sized {
     type Item<'a>;
-    type IterItem<'a>;
 
-    fn fetch<'w>(world: &'w World) -> Vec<Self::Item<'w>>;
-
-    fn item_to_iter_item<'a>(item: &'a Self::Item<'a>) -> &'a Self::IterItem<'a>;
+    fn fetch(world: &World) -> Vec<Self::Item<'_>>;
 }
 
 // implement QueryData for a reference to a component type
 impl<T: 'static> QueryData for &T {
-    type Item<'a> = Rc<T>;
-    type IterItem<'a> = T;
+    type Item<'a> = Rc<RefCell<T>>;
 
-    fn fetch<'w>(world: &'w World) -> Vec<Self::Item<'w>> {
+    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
         world
             .borrow_component_vec::<T>()
             .unwrap()
@@ -84,54 +68,143 @@ impl<T: 'static> QueryData for &T {
             .cloned()
             .collect()
     }
+}
 
-    fn item_to_iter_item<'a>(item: &'a Self::Item<'_>) -> &'a Self::IterItem<'a> {
-        let brw = item.as_ref();
-        brw
-        // item.borrow().clone()
+impl<T: 'static> QueryData for &mut T {
+    type Item<'a> = Rc<RefCell<T>>;
+
+    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
+        world
+            .borrow_component_vec::<T>()
+            .unwrap()
+            .iter() // filter out the None values
+            .filter_map(|component| component.as_ref())
+            .cloned()
+            .collect()
+    }
+}
+
+impl<T: 'static> QueryData for (&T,) {
+    type Item<'a> = (Rc<RefCell<T>>,);
+
+    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
+        world
+            .borrow_component_vec::<T>()
+            .unwrap()
+            .iter() // filter out the None values
+            .filter_map(|component| component.as_ref())
+            .cloned()
+            .map(|component| (component,))
+            .collect()
+    }
+}
+
+impl<T: 'static, U: 'static> QueryData for (&T, &U) {
+    type Item<'a> = (Rc<RefCell<T>>, Rc<RefCell<U>>);
+
+    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
+        let component_vec1 = world.borrow_component_vec::<T>().unwrap();
+        let component_vec2 = world.borrow_component_vec::<U>().unwrap();
+        let mut components = Vec::new();
+        for (component1, component2) in component_vec1.iter().zip(component_vec2.iter()) {
+            if let (Some(component1), Some(component2)) = (component1.as_ref(), component2.as_ref())
+            {
+                components.push((component1.clone(), component2.clone()));
+            }
+        }
+        components
+    }
+}
+
+impl<T: 'static, U: 'static, V: 'static> QueryData for (&T, &U, &V) {
+    type Item<'a> = (Rc<RefCell<T>>, Rc<RefCell<U>>, Rc<RefCell<V>>);
+
+    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
+        let component_vec1 = world.borrow_component_vec::<T>().unwrap();
+        let component_vec2 = world.borrow_component_vec::<U>().unwrap();
+        let component_vec3 = world.borrow_component_vec::<V>().unwrap();
+        let mut components = Vec::new();
+        for ((component1, component2), component3) in component_vec1
+            .iter()
+            .zip(component_vec2.iter())
+            .zip(component_vec3.iter())
+        {
+            if let (Some(component1), Some(component2), Some(component3)) = (
+                component1.as_ref(),
+                component2.as_ref(),
+                component3.as_ref(),
+            ) {
+                components.push((component1.clone(), component2.clone(), component3.clone()));
+            }
+        }
+        components
+    }
+}
+
+impl<T: 'static, U: 'static, V: 'static, W: 'static> QueryData for (&T, &U, &V, &W) {
+    type Item<'a> = (
+        Rc<RefCell<T>>,
+        Rc<RefCell<U>>,
+        Rc<RefCell<V>>,
+        Rc<RefCell<W>>,
+    );
+
+    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
+        let component_vec1 = world.borrow_component_vec::<T>().unwrap();
+        let component_vec2 = world.borrow_component_vec::<U>().unwrap();
+        let component_vec3 = world.borrow_component_vec::<V>().unwrap();
+        let component_vec4 = world.borrow_component_vec::<W>().unwrap();
+        let mut components = Vec::new();
+        for (((component1, component2), component3), component4) in component_vec1
+            .iter()
+            .zip(component_vec2.iter())
+            .zip(component_vec3.iter())
+            .zip(component_vec4.iter())
+        {
+            if let (Some(component1), Some(component2), Some(component3), Some(component4)) = (
+                component1.as_ref(),
+                component2.as_ref(),
+                component3.as_ref(),
+                component4.as_ref(),
+            ) {
+                components.push((
+                    component1.clone(),
+                    component2.clone(),
+                    component3.clone(),
+                    component4.clone(),
+                ));
+            }
+        }
+        components
     }
 }
 
 #[test]
 fn test_query() {
     let mut world = World::new();
+
     let entity = world.new_entity();
     world.add_component_to_entity(entity, 42i32);
+
+    let entity2 = world.new_entity();
+    world.add_component_to_entity(entity2, 100i32);
+    world.add_component_to_entity(entity2, "hello".to_string());
+
     let query = Query::<&i32>::fetch(&world);
-    for &component in &query {
-        assert_eq!(component, 42);
+    for (i, component) in query.into_iter().enumerate() {
+        let component = (*component).borrow();
+        if i == 0 {
+            assert_eq!(*component, 42);
+        } else {
+            assert_eq!(*component, 100);
+        }
+    }
+
+    let query = Query::<(&i32, &String)>::fetch(&world);
+    for (int_component, string_component) in query {
+        let int_component = (*int_component).borrow();
+        let string_component = (*string_component).borrow();
+        assert_eq!(*int_component, 100);
+        assert_eq!(*string_component, "hello");
     }
 }
-
-// struct QueryIter<'q, D: QueryData> {
-//     query: &'q Query<'q, D>,
-//     index: usize,
-// }
-
-// impl<'q, D: QueryData> QueryIter<'q, D> {
-//     fn new(query: &'q Query<'q, D>) -> Self {
-//         // for sparse_ref in &query.sparse_refs {
-
-//         // }
-//         Self { query, index: 0 }
-//     }
-// }
-
-// impl<'d, D: QueryData> Iterator for QueryIter<'d, D> {
-//     type Item = D::Item;
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         D::next(self)
-//     }
-// }
-
-// trait SparseQueryData {
-//     type Item<'a>: QueryIter<'a>;
-
-//     fn to_dense(&self) ->
-// }
-
-// impl<T: 'static> SparseQueryData for Ref<'_, Vec<Option<T>>> {
-//     type Item<'a> = Ref<'a, Vec<Option<T>>>;
-
-// }
