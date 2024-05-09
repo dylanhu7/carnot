@@ -6,8 +6,6 @@ use crate::ecs::World;
 use crate::graphics::PerspectiveCamera;
 use crate::input::InputState;
 use crate::render::Renderer;
-use std::ops::DerefMut;
-use std::rc::Rc;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use winit::{
@@ -21,7 +19,6 @@ use winit::{
 pub struct App {
     title: String,
     pub window: Option<Arc<Window>>,
-    // pub renderer: Option<Renderer<'a>>>,
     pub world: World,
     pub systems: Vec<BoxedSystem>,
 }
@@ -33,7 +30,6 @@ impl Default for App {
         Self {
             title: "Carnot Application".to_string(),
             window: Default::default(),
-            // renderer: Default::default(),
             world,
             systems: Default::default(),
         }

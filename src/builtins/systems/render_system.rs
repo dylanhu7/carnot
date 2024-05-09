@@ -139,6 +139,7 @@ pub fn render_system(
     });
 
     let mut encoder = renderer.create_command_encoder(None);
+    let render_pass_builder = RenderPassBuilder::new();
     let surface_texture = renderer.context.surface.get_current_texture().unwrap();
     let view = Renderer::get_current_texture_view(&surface_texture);
     let depth_texture = texture::Texture::create_depth_texture(
@@ -147,55 +148,91 @@ pub fn render_system(
         "depth_texture",
     );
 
+    let mut meshes = Vec::new();
+    let mut transforms = Vec::new();
+
     for (mesh, transform) in models {
-        let mesh = (*mesh).borrow();
-        let transform = (*transform).borrow();
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(&mesh.vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        meshes.push(mesh);
+        transforms.push(transform);
+    }
 
-        let uniform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Model Buffer"),
-            contents: bytemuck::cast_slice(&[Mat4Uniform::from(&*transform)]),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
+    let vertex_buffers: Vec<_> = meshes
+        .iter()
+        .map(|mesh| {
+            let mesh = (**mesh).borrow();
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(&mesh.vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            })
+        })
+        .collect();
 
-        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            layout: &model_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform.as_entire_binding(),
-            }],
-            label: Some("model_bind_group"),
-        });
+    let uniforms: Vec<_> = transforms
+        .iter()
+        .map(|transform| {
+            let transform = &*((**transform).borrow());
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Model Buffer"),
+                contents: bytemuck::cast_slice(&[Mat4Uniform::from(transform)]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            })
+        })
+        .collect();
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(&mesh.indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+    let uniform_bind_groups: Vec<_> = uniforms
+        .iter()
+        .map(|uniform| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &model_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform.as_entire_binding(),
+                }],
+                label: Some("model_bind_group"),
+            })
+        })
+        .collect();
 
-        let num_indices = mesh.indices.len() as u32;
+    let index_buffers: Vec<_> = meshes
+        .iter()
+        .map(|mesh| {
+            let mesh = (**mesh).borrow();
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(&mesh.indices),
+                usage: wgpu::BufferUsages::INDEX,
+            })
+        })
+        .collect();
 
+    let indices_counts: Vec<_> = meshes
+        .iter()
+        .map(|mesh| {
+            let mesh = (**mesh).borrow();
+            mesh.indices.len() as u32
+        })
+        .collect();
+
+    {
+        let mut render_pass = render_pass_builder
+            .color_attachment(&view)
+            .depth_stencil_attachment(&depth_texture.view)
+            .begin_render_pass(&mut encoder, None);
+        render_pass.set_pipeline(&render_pipeline);
+        render_pass.set_bind_group(0, &camera_bind_group, &[]);
+        for (((vertex_buffer, index_buffer), num_indices), uniform_bind_group) in vertex_buffers
+            .iter()
+            .zip(index_buffers.iter())
+            .zip(indices_counts.iter())
+            .zip(uniform_bind_groups.iter())
         {
-            let render_pass_builder = RenderPassBuilder::new();
-            let mut render_pass = render_pass_builder
-                .color_attachment(&view)
-                .depth_stencil_attachment(&depth_texture.view)
-                .begin_render_pass(&mut encoder, None);
-            render_pass.set_pipeline(&render_pipeline);
-            render_pass.set_bind_group(0, &camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &uniform_bind_group, &[]);
+            render_pass.set_bind_group(1, uniform_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-            render_pass.draw_indexed(0..num_indices, 0, 0..1);
+            render_pass.draw_indexed(0..*num_indices, 0, 0..1);
         }
     }
-    renderer
-        .context
-        .queue
-        .submit(std::iter::once(encoder.finish()));
+    renderer.context.queue.submit([encoder.finish()]);
     surface_texture.present();
 }
