@@ -1,7 +1,8 @@
 use std::{
     any::{Any, TypeId},
-    cell::Ref,
+    cell::{Ref, RefCell},
     marker::PhantomData,
+    rc::Rc,
 };
 
 use super::{system::SystemParam, World};
@@ -25,7 +26,7 @@ use super::{system::SystemParam, World};
 ///     }
 /// }
 pub struct Query<'q, D: QueryData> {
-    sparse_refs: Vec<Ref<'q, Vec<Option<Box<dyn Any>>>>>,
+    sparse_refs: Vec<Ref<'q, Vec<Option<Rc<RefCell<dyn Any>>>>>>,
     type_ids: Vec<TypeId>,
     marker: PhantomData<D>,
 }
@@ -60,18 +61,23 @@ impl<'a, D: QueryData> IntoIterator for &'a Query<'a, D> {
 }
 
 pub trait QueryData: Sized {
-    type Item<'a>;
+    type Item<'a>
+    where
+        Self: 'a;
 
-    fn get_sparse_refs(world: &World) -> (Vec<Ref<Vec<Option<Box<dyn Any>>>>>, Vec<TypeId>);
+    fn get_sparse_refs(world: &World)
+        -> (Vec<Ref<Vec<Option<Rc<RefCell<dyn Any>>>>>>, Vec<TypeId>);
 
     fn next<'q>(query: &mut QueryIter<'q, Self>) -> Option<Self::Item<'q>>;
 }
 
 // implement QueryData for a reference to a component type
 impl<T: 'static> QueryData for &T {
-    type Item<'a> = &'a T;
+    type Item<'a> = Ref<'a, T> where Self: 'a;
 
-    fn get_sparse_refs(world: &World) -> (Vec<Ref<Vec<Option<Box<dyn Any>>>>>, Vec<TypeId>) {
+    fn get_sparse_refs(
+        world: &World,
+    ) -> (Vec<Ref<Vec<Option<Rc<RefCell<dyn Any>>>>>>, Vec<TypeId>) {
         let sparse_refs = world.borrow_component_vec_as_any::<T>().unwrap();
         let type_id = TypeId::of::<T>();
         (vec![sparse_refs], vec![type_id])
@@ -93,11 +99,13 @@ impl<T: 'static> QueryData for &T {
         let type_id = type_ids_iter.next().unwrap();
 
         let component = sparse_ref[index]
-            .as_ref()
             .unwrap()
-            .downcast_ref::<T>()
-            .unwrap();
+            .as
+            .unwrap()
+            .borrow();
+
         iter.index += 1;
+
         Some(component)
     }
 }
@@ -117,7 +125,7 @@ impl<'q, D: QueryData> QueryIter<'q, D> {
 }
 
 impl<'d, D: QueryData> Iterator for QueryIter<'d, D> {
-    type Item = D::Item<'d>;
+    type Item = D::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         D::next(self)
