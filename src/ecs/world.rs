@@ -8,7 +8,7 @@ use super::component::ComponentVec;
 #[derive(Default)]
 pub struct World {
     pub num_entities: usize,
-    component_vecs: HashMap<TypeId, Box<dyn ComponentVec>>, // HashMap<TypeId, Box<RefCell<Vec<Option<Rc<RefCell<T>>>>>>>
+    component_vecs: HashMap<TypeId, Box<dyn ComponentVec>>, // HashMap<TypeId, Box<RefCell<Vec<Option<Rc<T>>>>>>
     resources: HashMap<TypeId, Box<dyn Any>>,
 }
 
@@ -36,54 +36,39 @@ impl World {
             .component_vecs
             .entry(TypeId::of::<T>())
             .or_insert_with(|| {
-                Box::new(RefCell::new(Vec::<Option<Rc<RefCell<T>>>>::with_capacity(
+                Box::new(RefCell::new(Vec::<Option<Rc<T>>>::with_capacity(
                     self.num_entities,
                 )))
             })
             .as_any_mut()
-            .downcast_mut::<RefCell<Vec<Option<Rc<RefCell<T>>>>>>()
-            .expect("failed to downcast component vec to RefCell<Vec<Option<Rc<RefCell<T>>>>>")
+            .downcast_mut::<RefCell<Vec<Option<Rc<T>>>>>()
+            .expect("failed to downcast component vec to RefCell<Vec<Option<Rc<T>>>>")
             .get_mut();
         while component_vec.len() < self.num_entities {
             component_vec.push(None);
         }
-        component_vec[entity] = Some(Rc::new(RefCell::new(component)));
+        component_vec[entity] = Some(Rc::new(component));
     }
 
-    pub fn borrow_component_vec<T: 'static>(&self) -> Option<Ref<Vec<Option<Rc<RefCell<T>>>>>> {
+    pub fn borrow_component_vec<T: 'static>(&self) -> Option<Ref<Vec<Option<Rc<T>>>>> {
         self.component_vecs
             .get(&TypeId::of::<T>())
             .and_then(|component_vec| {
                 component_vec
                     .as_any()
-                    .downcast_ref::<RefCell<Vec<Option<Rc<RefCell<T>>>>>>()
+                    .downcast_ref::<RefCell<Vec<Option<Rc<T>>>>>()
                     .map(|component_vec| component_vec.borrow())
             })
     }
 
-    pub fn borrow_component_vec_mut<T: 'static>(
-        &self,
-    ) -> Option<RefMut<Vec<Option<Rc<RefCell<T>>>>>> {
+    pub fn borrow_component_vec_mut<T: 'static>(&self) -> Option<RefMut<Vec<Option<Rc<T>>>>> {
         self.component_vecs
             .get(&TypeId::of::<T>())
             .and_then(|component_vec| {
                 component_vec
                     .as_any()
-                    .downcast_ref::<RefCell<Vec<Option<Rc<RefCell<T>>>>>>()
+                    .downcast_ref::<RefCell<Vec<Option<Rc<T>>>>>()
                     .map(|component_vec| component_vec.borrow_mut())
-            })
-    }
-
-    pub fn borrow_component_vec_as_any<T: 'static>(
-        &self,
-    ) -> Option<Ref<Vec<Option<Rc<RefCell<dyn Any>>>>>> {
-        self.component_vecs
-            .get(&TypeId::of::<T>())
-            .and_then(|component_vec| {
-                component_vec
-                    .as_any()
-                    .downcast_ref::<RefCell<Vec<Option<Rc<RefCell<dyn Any>>>>>>()
-                    .map(|component_vec| component_vec.borrow())
             })
     }
 }
