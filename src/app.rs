@@ -121,10 +121,10 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::Resized(physical_size) => {
-                (move |mut renderer: ResMut<Renderer>| renderer.resize(physical_size))
-                    .into_system()
-                    .run(&mut self.world);
-                // self.renderer.as_mut().unwrap().resize(physical_size);
+                self.world
+                    .get_resource_mut::<Renderer>()
+                    .unwrap()
+                    .resize(physical_size);
                 let query = Query::<(&ActiveCamera, &PerspectiveCamera)>::fetch(&self.world);
                 let (_, camera) = query.into_iter().next().unwrap();
                 let mut camera = (*camera).borrow_mut();

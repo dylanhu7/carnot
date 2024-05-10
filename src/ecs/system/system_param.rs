@@ -1,5 +1,3 @@
-use std::{any::TypeId, marker::PhantomData};
-
 use crate::ecs::resource::{Res, ResMut};
 
 use super::World;
@@ -24,10 +22,7 @@ impl<'res, T: 'static> SystemParam for Res<'res, T> {
     type Item<'new> = Res<'new, T>;
 
     fn fetch(world: &World) -> Self::Item<'_> {
-        Res {
-            value: world.resources.get(&TypeId::of::<T>()).unwrap().borrow(),
-            _marker: PhantomData,
-        }
+        world.get_resource::<T>().unwrap()
     }
 }
 
@@ -35,14 +30,7 @@ impl<'res, T: 'static> SystemParam for ResMut<'res, T> {
     type Item<'new> = ResMut<'new, T>;
 
     fn fetch(world: &World) -> Self::Item<'_> {
-        ResMut {
-            value: world
-                .resources
-                .get(&TypeId::of::<T>())
-                .unwrap()
-                .borrow_mut(),
-            _marker: PhantomData,
-        }
+        world.get_resource_mut::<T>().unwrap()
     }
 }
 

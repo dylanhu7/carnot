@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use super::component::ComponentVec;
+use super::resource::{Res, ResMut};
 
 #[derive(Default)]
 pub struct World {
@@ -80,24 +81,30 @@ impl World {
             .insert(TypeId::of::<T>(), RefCell::new(Box::new(resource)));
     }
 
-    pub fn get_resource<T: 'static>(&self) -> Option<Ref<T>> {
-        self.resources.get(&TypeId::of::<T>()).map(|resource| {
-            Ref::map(resource.borrow(), |resource| {
-                resource
-                    .downcast_ref::<T>()
-                    .expect("failed to downcast resource to T")
+    pub fn get_resource<T: 'static>(&self) -> Option<Res<T>> {
+        self.resources
+            .get(&TypeId::of::<T>())
+            .map(|resource| {
+                Ref::map(resource.borrow(), |resource| {
+                    resource
+                        .downcast_ref::<T>()
+                        .expect("failed to downcast resource to T")
+                })
             })
-        })
+            .map(|borrowed| Res { value: borrowed })
     }
 
-    pub fn get_resource_mut<T: 'static>(&self) -> Option<RefMut<T>> {
-        self.resources.get(&TypeId::of::<T>()).map(|resource| {
-            RefMut::map(resource.borrow_mut(), |resource| {
-                resource
-                    .downcast_mut::<T>()
-                    .expect("failed to downcast resource to T")
+    pub fn get_resource_mut<T: 'static>(&self) -> Option<ResMut<T>> {
+        self.resources
+            .get(&TypeId::of::<T>())
+            .map(|resource| {
+                RefMut::map(resource.borrow_mut(), |resource| {
+                    resource
+                        .downcast_mut::<T>()
+                        .expect("failed to downcast resource to T")
+                })
             })
-        })
+            .map(|borrowed| ResMut { value: borrowed })
     }
 
     // pub fn get_resource<T: 'static>(&self) -> Option<&T> {
