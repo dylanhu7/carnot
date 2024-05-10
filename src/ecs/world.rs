@@ -9,7 +9,7 @@ use super::resource::{Res, ResMut};
 #[derive(Default)]
 pub struct World {
     pub num_entities: usize,
-    component_vecs: HashMap<TypeId, Box<dyn ComponentVec>>, // HashMap<TypeId, Box<RefCell<Vec<Option<Rc<RefCell<T>>>>>>>
+    component_vecs: HashMap<TypeId, Rc<RefCell<dyn ComponentVec>>>, // HashMap<TypeId, Rc<RefCell<Vec<Option<Rc<RefCell<T>>>>>>>
     pub resources: HashMap<TypeId, RefCell<Box<dyn Any>>>,
 }
 
@@ -19,57 +19,60 @@ impl World {
     }
 }
 
-// ECS implementations
 impl World {
+    // ECS implementations
     pub fn new_entity(&mut self) -> usize {
         let entity_id = self.num_entities;
         for component_vec in self.component_vecs.values_mut() {
-            component_vec.push_none();
+            component_vec.borrow_mut().push_none();
         }
         self.num_entities += 1;
         entity_id
     }
 
     pub fn add_component_to_entity<T: Any + 'static>(&mut self, entity: usize, component: T) {
-        let component_vec = self
+        let mut binding = self
             .component_vecs
             .entry(TypeId::of::<T>())
             .or_insert_with(|| {
-                Box::new(RefCell::new(Vec::<Option<Rc<RefCell<T>>>>::with_capacity(
+                Rc::new(RefCell::new(Vec::<Option<T>>::with_capacity(
                     self.num_entities,
                 )))
             })
+            .borrow_mut();
+        let component_vec = binding
             .as_any_mut()
-            .downcast_mut::<RefCell<Vec<Option<Rc<RefCell<T>>>>>>()
-            .expect("failed to downcast component vec to RefCell<Vec<Option<Rc<RefCell<T>>>>>")
-            .get_mut();
+            .downcast_mut::<Vec<Option<T>>>()
+            .expect("failed to downcast component vec to RefCell<Vec<Option<Rc<RefCell<T>>>>>");
         while component_vec.len() < self.num_entities {
             component_vec.push(None);
         }
-        component_vec[entity] = Some(Rc::new(RefCell::new(component)));
+        component_vec[entity] = Some(component);
     }
 
-    pub fn borrow_component_vec<T: 'static>(&self) -> Option<Ref<Vec<Option<Rc<RefCell<T>>>>>> {
+    pub fn borrow_component_vec<T: 'static>(&self) -> Option<Ref<Vec<Option<T>>>> {
         self.component_vecs
             .get(&TypeId::of::<T>())
             .and_then(|component_vec| {
-                component_vec
-                    .as_any()
-                    .downcast_ref::<RefCell<Vec<Option<Rc<RefCell<T>>>>>>()
-                    .map(|component_vec| component_vec.borrow())
+                Some(Ref::map(component_vec.borrow(), |component_vec| {
+                    component_vec
+                        .as_any()
+                        .downcast_ref::<Vec<Option<T>>>()
+                        .expect("failed to downcast component vec to Vec<Option<T>>")
+                }))
             })
     }
 
-    pub fn borrow_component_vec_mut<T: 'static>(
-        &self,
-    ) -> Option<RefMut<Vec<Option<Rc<RefCell<T>>>>>> {
+    pub fn borrow_component_vec_mut<T: 'static>(&self) -> Option<RefMut<Vec<Option<T>>>> {
         self.component_vecs
             .get(&TypeId::of::<T>())
             .and_then(|component_vec| {
-                component_vec
-                    .as_any()
-                    .downcast_ref::<RefCell<Vec<Option<Rc<RefCell<T>>>>>>()
-                    .map(|component_vec| component_vec.borrow_mut())
+                Some(RefMut::map(component_vec.borrow_mut(), |component_vec| {
+                    component_vec
+                        .as_any_mut()
+                        .downcast_mut::<Vec<Option<T>>>()
+                        .expect("failed to downcast component vec to Vec<Option<T>>")
+                }))
             })
     }
 }

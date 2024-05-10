@@ -1,4 +1,7 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Ref, RefCell},
+    rc::Rc,
+};
 
 use super::{system::SystemParam, World};
 
@@ -20,14 +23,30 @@ use super::{system::SystemParam, World};
 ///         // do something with mesh and transform
 ///     }
 /// }
-pub struct Query<'q, D: QueryData> {
-    refs: Vec<D::Item<'q>>,
+pub struct Query<'a, D: QueryData> {
+    refs: D::ItemVecRefs<'a>,
 }
 
-impl<'q, D: QueryData> Query<'q, D> {
-    pub fn new(world: &'q World) -> Self {
+impl<'a, D: QueryData> Query<'a, D> {
+    pub fn new(world: &'a World) -> Self {
         let refs = D::fetch(world);
         Self { refs }
+    }
+}
+
+pub struct QueryIter<'a, 'q, D: QueryData> {
+    query: &'a Query<'q, D>,
+    index: usize,
+}
+
+impl<'a, 'q, D: QueryData> Iterator for QueryIter<'a, 'q, D> {
+    type Item = D::Item<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        D::next(&self.query.refs, self.index).map(|component| {
+            self.index += 1;
+            component
+        })
     }
 }
 
@@ -35,147 +54,69 @@ impl<'q, D: QueryData> SystemParam for Query<'q, D> {
     type Item<'a> = Query<'a, D>;
 
     fn fetch(world: &World) -> Self::Item<'_> {
-        Query::new(world)
+        Query::<D>::new(world)
     }
 }
 
 // implementation of IntoIterator for Query
-impl<'a, D: QueryData> IntoIterator for Query<'a, D> {
+impl<'a, 'q, D: QueryData> IntoIterator for &'a Query<'q, D> {
     type Item = D::Item<'a>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
+    type IntoIter = QueryIter<'a, 'q, D>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.refs.into_iter()
+        QueryIter {
+            query: self,
+            index: 0,
+        }
     }
 }
 
 pub trait QueryData: Sized {
-    type Item<'a>;
+    type Item<'a>: 'a;
+    type ItemVecRefs<'a>;
 
-    fn fetch(world: &World) -> Vec<Self::Item<'_>>;
+    fn fetch(world: &World) -> Self::ItemVecRefs<'_>;
+
+    fn next<'a>(vec_refs: &'a Self::ItemVecRefs<'_>, index: usize) -> Option<Self::Item<'a>>;
 }
 
 // implement QueryData for a reference to a component type
 impl<T: 'static> QueryData for &T {
-    type Item<'a> = Rc<RefCell<T>>;
+    type Item<'a> = &'a T;
+    type ItemVecRefs<'a> = Ref<'a, Vec<Option<T>>>;
 
-    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
-        world
-            .borrow_component_vec::<T>()
-            .unwrap()
-            .iter() // filter out the None values
-            .filter_map(|component| component.as_ref())
-            .cloned()
-            .collect()
+    fn fetch(world: &World) -> Self::ItemVecRefs<'_> {
+        world.borrow_component_vec::<T>().unwrap()
+    }
+
+    fn next<'a>(vec_refs: &'a Self::ItemVecRefs<'_>, index: usize) -> Option<Self::Item<'a>> {
+        vec_refs.get(index).and_then(|component| component.as_ref())
     }
 }
 
-impl<T: 'static> QueryData for &mut T {
-    type Item<'a> = Rc<RefCell<T>>;
+impl<D: QueryData> QueryData for (D,) {
+    type Item<'a> = (D::Item<'a>,);
+    type ItemVecRefs<'a> = (D::ItemVecRefs<'a>,);
 
-    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
-        world
-            .borrow_component_vec::<T>()
-            .unwrap()
-            .iter() // filter out the None values
-            .filter_map(|component| component.as_ref())
-            .cloned()
-            .collect()
+    fn fetch(world: &World) -> Self::ItemVecRefs<'_> {
+        (D::fetch(world),)
+    }
+
+    fn next<'a>(vec_refs: &'a Self::ItemVecRefs<'_>, index: usize) -> Option<Self::Item<'a>> {
+        D::next(&vec_refs.0, index).map(|item| (item,))
     }
 }
 
-impl<T: 'static> QueryData for (&T,) {
-    type Item<'a> = (Rc<RefCell<T>>,);
+impl<D1: QueryData, D2: QueryData> QueryData for (D1, D2) {
+    type Item<'a> = (D1::Item<'a>, D2::Item<'a>);
+    type ItemVecRefs<'a> = (D1::ItemVecRefs<'a>, D2::ItemVecRefs<'a>);
 
-    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
-        world
-            .borrow_component_vec::<T>()
-            .unwrap()
-            .iter() // filter out the None values
-            .filter_map(|component| component.as_ref())
-            .cloned()
-            .map(|component| (component,))
-            .collect()
+    fn fetch(world: &World) -> Self::ItemVecRefs<'_> {
+        (D1::fetch(world), D2::fetch(world))
     }
-}
 
-impl<T: 'static, U: 'static> QueryData for (&T, &U) {
-    type Item<'a> = (Rc<RefCell<T>>, Rc<RefCell<U>>);
-
-    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
-        let component_vec1 = world.borrow_component_vec::<T>().unwrap();
-        let component_vec2 = world.borrow_component_vec::<U>().unwrap();
-        let mut components = Vec::new();
-        for (component1, component2) in component_vec1.iter().zip(component_vec2.iter()) {
-            if let (Some(component1), Some(component2)) = (component1.as_ref(), component2.as_ref())
-            {
-                components.push((component1.clone(), component2.clone()));
-            }
-        }
-        components
-    }
-}
-
-impl<T: 'static, U: 'static, V: 'static> QueryData for (&T, &U, &V) {
-    type Item<'a> = (Rc<RefCell<T>>, Rc<RefCell<U>>, Rc<RefCell<V>>);
-
-    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
-        let component_vec1 = world.borrow_component_vec::<T>().unwrap();
-        let component_vec2 = world.borrow_component_vec::<U>().unwrap();
-        let component_vec3 = world.borrow_component_vec::<V>().unwrap();
-        let mut components = Vec::new();
-        for ((component1, component2), component3) in component_vec1
-            .iter()
-            .zip(component_vec2.iter())
-            .zip(component_vec3.iter())
-        {
-            if let (Some(component1), Some(component2), Some(component3)) = (
-                component1.as_ref(),
-                component2.as_ref(),
-                component3.as_ref(),
-            ) {
-                components.push((component1.clone(), component2.clone(), component3.clone()));
-            }
-        }
-        components
-    }
-}
-
-impl<T: 'static, U: 'static, V: 'static, W: 'static> QueryData for (&T, &U, &V, &W) {
-    type Item<'a> = (
-        Rc<RefCell<T>>,
-        Rc<RefCell<U>>,
-        Rc<RefCell<V>>,
-        Rc<RefCell<W>>,
-    );
-
-    fn fetch(world: &World) -> Vec<Self::Item<'_>> {
-        let component_vec1 = world.borrow_component_vec::<T>().unwrap();
-        let component_vec2 = world.borrow_component_vec::<U>().unwrap();
-        let component_vec3 = world.borrow_component_vec::<V>().unwrap();
-        let component_vec4 = world.borrow_component_vec::<W>().unwrap();
-        let mut components = Vec::new();
-        for (((component1, component2), component3), component4) in component_vec1
-            .iter()
-            .zip(component_vec2.iter())
-            .zip(component_vec3.iter())
-            .zip(component_vec4.iter())
-        {
-            if let (Some(component1), Some(component2), Some(component3), Some(component4)) = (
-                component1.as_ref(),
-                component2.as_ref(),
-                component3.as_ref(),
-                component4.as_ref(),
-            ) {
-                components.push((
-                    component1.clone(),
-                    component2.clone(),
-                    component3.clone(),
-                    component4.clone(),
-                ));
-            }
-        }
-        components
+    fn next<'a>(vec_refs: &'a Self::ItemVecRefs<'_>, index: usize) -> Option<Self::Item<'a>> {
+        Some((D1::next(&vec_refs.0, index)?, D2::next(&vec_refs.1, index)?))
     }
 }
 
@@ -192,7 +133,6 @@ fn test_query() {
 
     let query = Query::<&i32>::fetch(&world);
     for (i, component) in query.into_iter().enumerate() {
-        let component = (*component).borrow();
         if i == 0 {
             assert_eq!(*component, 42);
         } else {
@@ -201,9 +141,7 @@ fn test_query() {
     }
 
     let query = Query::<(&i32, &String)>::fetch(&world);
-    for (int_component, string_component) in query {
-        let int_component = (*int_component).borrow();
-        let string_component = (*string_component).borrow();
+    for (int_component, string_component) in &query {
         assert_eq!(*int_component, 100);
         assert_eq!(*string_component, "hello");
     }

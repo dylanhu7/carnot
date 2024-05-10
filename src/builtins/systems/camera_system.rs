@@ -14,8 +14,6 @@ pub fn camera_system(
     camera: Query<(&Transform, &ActiveCamera)>,
 ) {
     let (transform, _) = camera.into_iter().next().expect("No active camera found");
-    let transform = &mut (*transform.borrow_mut());
-    let input_state = input_state.deref_mut();
 
     const SPEED: f32 = 0.05;
     let mut dir = glam::Vec4::ZERO;
