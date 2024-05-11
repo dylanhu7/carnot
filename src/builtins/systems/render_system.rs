@@ -27,7 +27,7 @@ pub fn render_system(
         source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/shader.wgsl").into()),
     });
     let camera_uniform = CameraUniform::from_inv_view_proj(
-        &(&*camera_transform).into(),
+        &camera_transform.into(),
         &camera.get_projection_matrix(),
     );
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
