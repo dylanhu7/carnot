@@ -125,11 +125,13 @@ impl ApplicationHandler for App {
                     .get_resource_mut::<Renderer>()
                     .unwrap()
                     .resize(physical_size);
-                let query = Query::<(&ActiveCamera, &PerspectiveCamera)>::fetch(&self.world);
-                let (_, camera) = query.into_iter().next().unwrap();
-                let mut camera = (*camera).borrow_mut();
-                camera
-                    .update_aspect_ratio(physical_size.width as f32 / physical_size.height as f32);
+                let mut query =
+                    Query::<(&ActiveCamera, &mut PerspectiveCamera)>::fetch(&self.world);
+                if let Some((_, camera)) = (&mut query).into_iter().next() {
+                    camera.update_aspect_ratio(
+                        physical_size.width as f32 / physical_size.height as f32,
+                    );
+                }
             }
             WindowEvent::ScaleFactorChanged { .. } => {
                 // Update the window size

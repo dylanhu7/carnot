@@ -19,8 +19,6 @@ pub fn render_system(
     camera: Query<(&PerspectiveCamera, &Transform, &ActiveCamera)>,
 ) {
     let (camera, camera_transform, _) = camera.into_iter().next().expect("No active camera found");
-    let camera = (*camera).borrow();
-    let camera_transform = (*camera_transform).borrow();
 
     let device = &renderer.context.device;
 
@@ -151,7 +149,7 @@ pub fn render_system(
     let mut meshes = Vec::new();
     let mut transforms = Vec::new();
 
-    for (mesh, transform) in models {
+    for (mesh, transform) in &models {
         meshes.push(mesh);
         transforms.push(transform);
     }
@@ -159,7 +157,6 @@ pub fn render_system(
     let vertex_buffers: Vec<_> = meshes
         .iter()
         .map(|mesh| {
-            let mesh = (**mesh).borrow();
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Vertex Buffer"),
                 contents: bytemuck::cast_slice(&mesh.vertices),
@@ -171,10 +168,9 @@ pub fn render_system(
     let uniforms: Vec<_> = transforms
         .iter()
         .map(|transform| {
-            let transform = &*((**transform).borrow());
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Model Buffer"),
-                contents: bytemuck::cast_slice(&[Mat4Uniform::from(transform)]),
+                contents: bytemuck::cast_slice(&[Mat4Uniform::from(*transform)]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             })
         })
@@ -197,7 +193,6 @@ pub fn render_system(
     let index_buffers: Vec<_> = meshes
         .iter()
         .map(|mesh| {
-            let mesh = (**mesh).borrow();
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Index Buffer"),
                 contents: bytemuck::cast_slice(&mesh.indices),
@@ -208,10 +203,7 @@ pub fn render_system(
 
     let indices_counts: Vec<_> = meshes
         .iter()
-        .map(|mesh| {
-            let mesh = (**mesh).borrow();
-            mesh.indices.len() as u32
-        })
+        .map(|mesh| mesh.indices.len() as u32)
         .collect();
 
     {

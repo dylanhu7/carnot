@@ -9,7 +9,7 @@ use super::resource::{Res, ResMut};
 #[derive(Default)]
 pub struct World {
     pub num_entities: usize,
-    component_vecs: HashMap<TypeId, Rc<RefCell<dyn ComponentVec>>>, // HashMap<TypeId, Rc<RefCell<Vec<Option<Rc<RefCell<T>>>>>>>
+    component_vecs: HashMap<TypeId, Rc<RefCell<dyn ComponentVec>>>, // HashMap<TypeId, Rc<RefCell<Vec<Option<T>>>>>
     pub resources: HashMap<TypeId, RefCell<Box<dyn Any>>>,
 }
 
@@ -43,7 +43,7 @@ impl World {
         let component_vec = binding
             .as_any_mut()
             .downcast_mut::<Vec<Option<T>>>()
-            .expect("failed to downcast component vec to RefCell<Vec<Option<Rc<RefCell<T>>>>>");
+            .expect("failed to downcast component vec to RefCell<Vec<Option<<T>>>");
         while component_vec.len() < self.num_entities {
             component_vec.push(None);
         }
@@ -53,26 +53,26 @@ impl World {
     pub fn borrow_component_vec<T: 'static>(&self) -> Option<Ref<Vec<Option<T>>>> {
         self.component_vecs
             .get(&TypeId::of::<T>())
-            .and_then(|component_vec| {
-                Some(Ref::map(component_vec.borrow(), |component_vec| {
+            .map(|component_vec| {
+                Ref::map(component_vec.borrow(), |component_vec| {
                     component_vec
                         .as_any()
                         .downcast_ref::<Vec<Option<T>>>()
                         .expect("failed to downcast component vec to Vec<Option<T>>")
-                }))
+                })
             })
     }
 
     pub fn borrow_component_vec_mut<T: 'static>(&self) -> Option<RefMut<Vec<Option<T>>>> {
         self.component_vecs
             .get(&TypeId::of::<T>())
-            .and_then(|component_vec| {
-                Some(RefMut::map(component_vec.borrow_mut(), |component_vec| {
+            .map(|component_vec| {
+                RefMut::map(component_vec.borrow_mut(), |component_vec| {
                     component_vec
                         .as_any_mut()
                         .downcast_mut::<Vec<Option<T>>>()
                         .expect("failed to downcast component vec to Vec<Option<T>>")
-                }))
+                })
             })
     }
 }

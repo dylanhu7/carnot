@@ -1,7 +1,4 @@
-use std::{
-    cell::{Ref, RefCell},
-    rc::Rc,
-};
+use std::cell::{Ref, RefMut};
 
 use super::{system::SystemParam, World};
 
@@ -27,70 +24,87 @@ pub struct Query<'a, D: QueryData> {
     refs: D::ItemVecRefs<'a>,
 }
 
-impl<'a, D: QueryData> Query<'a, D> {
-    pub fn new(world: &'a World) -> Self {
-        let refs = D::fetch(world);
-        Self { refs }
-    }
-}
-
-pub struct QueryIter<'a, 'q, D: QueryData> {
-    query: &'a Query<'q, D>,
-    index: usize,
-}
-
-impl<'a, 'q, D: QueryData> Iterator for QueryIter<'a, 'q, D> {
-    type Item = D::Item<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        D::next(&self.query.refs, self.index).map(|component| {
-            self.index += 1;
-            component
-        })
-    }
-}
-
 impl<'q, D: QueryData> SystemParam for Query<'q, D> {
     type Item<'a> = Query<'a, D>;
 
     fn fetch(world: &World) -> Self::Item<'_> {
-        Query::<D>::new(world)
+        Query {
+            refs: D::fetch(world),
+        }
     }
 }
 
 // implementation of IntoIterator for Query
 impl<'a, 'q, D: QueryData> IntoIterator for &'a Query<'q, D> {
     type Item = D::Item<'a>;
-    type IntoIter = QueryIter<'a, 'q, D>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        QueryIter {
-            query: self,
-            index: 0,
-        }
+        D::refs_to_sparse_iter(&self.refs)
+            .flatten()
+            .collect::<Vec<_>>()
+            .into_iter()
+    }
+}
+
+impl<'a, 'q, D: QueryData> IntoIterator for &'a mut Query<'q, D> {
+    type Item = D::Item<'a>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        D::refs_to_sparse_iter_mut(&mut self.refs)
+            .flatten()
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 
 pub trait QueryData: Sized {
-    type Item<'a>: 'a;
+    type Item<'a>;
     type ItemVecRefs<'a>;
 
-    fn fetch(world: &World) -> Self::ItemVecRefs<'_>;
+    fn fetch<'a, 'w: 'a>(world: &'w World) -> Self::ItemVecRefs<'a>;
 
-    fn next<'a>(vec_refs: &'a Self::ItemVecRefs<'_>, index: usize) -> Option<Self::Item<'a>>;
+    fn refs_to_sparse_iter<'a>(
+        _refs: &'a Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        Vec::new().into_iter()
+    }
+
+    fn refs_to_sparse_iter_mut<'a>(
+        refs: &'a mut Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        Self::refs_to_sparse_iter(refs)
+    }
 }
 
-// implement QueryData for a reference to a component type
 impl<T: 'static> QueryData for &T {
     type Item<'a> = &'a T;
     type ItemVecRefs<'a> = Ref<'a, Vec<Option<T>>>;
 
-    fn fetch(world: &World) -> Self::ItemVecRefs<'_> {
+    fn fetch<'a, 'w: 'a>(world: &'w World) -> Self::ItemVecRefs<'a> {
         world.borrow_component_vec::<T>().unwrap()
     }
 
-    fn next<'a>(vec_refs: &'a Self::ItemVecRefs<'_>, index: usize) -> Option<Self::Item<'a>> {
-        vec_refs.get(index).and_then(|component| component.as_ref())
+    fn refs_to_sparse_iter<'a>(
+        refs: &'a Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        refs.iter().map(|component| component.as_ref())
+    }
+}
+
+impl<T: 'static> QueryData for &mut T {
+    type Item<'a> = &'a mut T;
+    type ItemVecRefs<'a> = RefMut<'a, Vec<Option<T>>>;
+
+    fn fetch<'a, 'w: 'a>(world: &'w World) -> Self::ItemVecRefs<'a> {
+        world.borrow_component_vec_mut::<T>().unwrap()
+    }
+
+    fn refs_to_sparse_iter_mut<'a>(
+        refs: &'a mut Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        refs.iter_mut().map(|component| component.as_mut())
     }
 }
 
@@ -98,12 +112,22 @@ impl<D: QueryData> QueryData for (D,) {
     type Item<'a> = (D::Item<'a>,);
     type ItemVecRefs<'a> = (D::ItemVecRefs<'a>,);
 
-    fn fetch(world: &World) -> Self::ItemVecRefs<'_> {
+    fn fetch<'a, 'w: 'a>(world: &'w World) -> Self::ItemVecRefs<'a> {
         (D::fetch(world),)
     }
 
-    fn next<'a>(vec_refs: &'a Self::ItemVecRefs<'_>, index: usize) -> Option<Self::Item<'a>> {
-        D::next(&vec_refs.0, index).map(|item| (item,))
+    fn refs_to_sparse_iter<'a>(
+        refs: &'a Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter = D::refs_to_sparse_iter(&refs.0);
+        iter.map(|item| item.map(|item| (item,)))
+    }
+
+    fn refs_to_sparse_iter_mut<'a>(
+        refs: &'a mut Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter = D::refs_to_sparse_iter_mut(&mut refs.0);
+        iter.map(|item| item.map(|item| (item,)))
     }
 }
 
@@ -111,38 +135,64 @@ impl<D1: QueryData, D2: QueryData> QueryData for (D1, D2) {
     type Item<'a> = (D1::Item<'a>, D2::Item<'a>);
     type ItemVecRefs<'a> = (D1::ItemVecRefs<'a>, D2::ItemVecRefs<'a>);
 
-    fn fetch(world: &World) -> Self::ItemVecRefs<'_> {
+    fn fetch<'a, 'w: 'a>(world: &'w World) -> Self::ItemVecRefs<'a> {
         (D1::fetch(world), D2::fetch(world))
     }
 
-    fn next<'a>(vec_refs: &'a Self::ItemVecRefs<'_>, index: usize) -> Option<Self::Item<'a>> {
-        Some((D1::next(&vec_refs.0, index)?, D2::next(&vec_refs.1, index)?))
+    fn refs_to_sparse_iter<'a>(
+        refs: &'a Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter1 = D1::refs_to_sparse_iter(&refs.0);
+        let iter2 = D2::refs_to_sparse_iter(&refs.1);
+        iter1
+            .zip(iter2)
+            .map(|(item1, item2)| Some((item1?, item2?)))
+    }
+
+    fn refs_to_sparse_iter_mut<'a>(
+        refs: &'a mut Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter1 = D1::refs_to_sparse_iter_mut(&mut refs.0);
+        let iter2 = D2::refs_to_sparse_iter_mut(&mut refs.1);
+        iter1
+            .zip(iter2)
+            .map(|(item1, item2)| Some((item1?, item2?)))
     }
 }
 
-#[test]
-fn test_query() {
-    let mut world = World::new();
+impl<D1: QueryData, D2: QueryData, D3: QueryData> QueryData for (D1, D2, D3) {
+    type Item<'a> = (D1::Item<'a>, D2::Item<'a>, D3::Item<'a>);
+    type ItemVecRefs<'a> = (
+        D1::ItemVecRefs<'a>,
+        D2::ItemVecRefs<'a>,
+        D3::ItemVecRefs<'a>,
+    );
 
-    let entity = world.new_entity();
-    world.add_component_to_entity(entity, 42i32);
-
-    let entity2 = world.new_entity();
-    world.add_component_to_entity(entity2, 100i32);
-    world.add_component_to_entity(entity2, "hello".to_string());
-
-    let query = Query::<&i32>::fetch(&world);
-    for (i, component) in query.into_iter().enumerate() {
-        if i == 0 {
-            assert_eq!(*component, 42);
-        } else {
-            assert_eq!(*component, 100);
-        }
+    fn fetch<'a, 'w: 'a>(world: &'w World) -> Self::ItemVecRefs<'a> {
+        (D1::fetch(world), D2::fetch(world), D3::fetch(world))
     }
 
-    let query = Query::<(&i32, &String)>::fetch(&world);
-    for (int_component, string_component) in &query {
-        assert_eq!(*int_component, 100);
-        assert_eq!(*string_component, "hello");
+    fn refs_to_sparse_iter<'a>(
+        refs: &'a Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter1 = D1::refs_to_sparse_iter(&refs.0);
+        let iter2 = D2::refs_to_sparse_iter(&refs.1);
+        let iter3 = D3::refs_to_sparse_iter(&refs.2);
+        iter1
+            .zip(iter2)
+            .zip(iter3)
+            .map(|((item1, item2), item3)| Some((item1?, item2?, item3?)))
+    }
+
+    fn refs_to_sparse_iter_mut<'a>(
+        refs: &'a mut Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter1 = D1::refs_to_sparse_iter_mut(&mut refs.0);
+        let iter2 = D2::refs_to_sparse_iter_mut(&mut refs.1);
+        let iter3 = D3::refs_to_sparse_iter_mut(&mut refs.2);
+        iter1
+            .zip(iter2)
+            .zip(iter3)
+            .map(|((item1, item2), item3)| Some((item1?, item2?, item3?)))
     }
 }

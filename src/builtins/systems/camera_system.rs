@@ -1,5 +1,3 @@
-use std::ops::DerefMut;
-
 use winit::keyboard::Key;
 
 use crate::{
@@ -11,9 +9,12 @@ use crate::{
 
 pub fn camera_system(
     mut input_state: ResMut<InputState>,
-    camera: Query<(&Transform, &ActiveCamera)>,
+    mut camera: Query<(&mut Transform, &ActiveCamera)>,
 ) {
-    let (transform, _) = camera.into_iter().next().expect("No active camera found");
+    let (transform, _) = (&mut camera)
+        .into_iter()
+        .next()
+        .expect("No active camera found");
 
     const SPEED: f32 = 0.05;
     let mut dir = glam::Vec4::ZERO;
