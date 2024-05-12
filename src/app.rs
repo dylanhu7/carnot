@@ -96,8 +96,9 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let mut attributes = Window::default_attributes();
-        attributes.title.clone_from(&self.title);
+        let attributes = Window::default_attributes()
+            .with_title(self.title.clone())
+            .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
         let window = Arc::new(event_loop.create_window(attributes).unwrap());
         self.window = Some(window);
         self.world
@@ -118,7 +119,6 @@ impl ApplicationHandler for App {
                 for system in self.systems.iter_mut() {
                     system.run(&mut self.world);
                 }
-                // self.renderer.as_ref().unwrap().window.request_redraw();
                 (|renderer: ResMut<Renderer>| renderer.window.request_redraw())
                     .into_system()
                     .run(&mut self.world);
@@ -163,10 +163,10 @@ impl ApplicationHandler for App {
                     .unwrap()
                     .resize(physical_size);
                 let mut query =
-                    <Query<(&ActiveCamera, &mut PerspectiveCamera)> as SystemParam>::fetch(
+                    <Query<(&mut PerspectiveCamera, &ActiveCamera)> as SystemParam>::fetch(
                         &self.world,
                     );
-                if let Some((_, camera)) = (&mut query).into_iter().next() {
+                if let Some((camera, _)) = (&mut query).into_iter().next() {
                     camera.update_aspect_ratio(
                         physical_size.width as f32 / physical_size.height as f32,
                     );
