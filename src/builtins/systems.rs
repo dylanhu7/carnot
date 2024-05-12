@@ -1,6 +1,4 @@
-pub use camera_system::camera_system;
-pub use render_system::render_system;
-pub use render_system::ActiveCamera;
+pub mod camera;
+pub mod render;
 
-mod camera_system;
-mod render_system;
+pub struct ActiveCamera;

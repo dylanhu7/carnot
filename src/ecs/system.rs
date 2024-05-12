@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-pub use system_param::{SystemParam, SystemParamItem};
+pub use system_param::{SystemOrWorldParam, SystemParam, SystemParamItem};
 
 use super::World;
 
@@ -15,7 +15,7 @@ pub trait System {
 
 pub type BoxedSystem = Box<dyn System>;
 
-pub struct FunctionSystem<F, M>
+pub struct SystemParamFunctionHolder<F, M>
 where
     F: SystemParamFunction<M>,
     M: 'static,
@@ -24,7 +24,7 @@ where
     marker: PhantomData<M>,
 }
 
-impl<F, M> System for FunctionSystem<F, M>
+impl<F, M> System for SystemParamFunctionHolder<F, M>
 where
     F: SystemParamFunction<M>,
     M: 'static,
@@ -35,30 +35,68 @@ where
     }
 }
 
-pub trait IntoSystem<Params> {
+pub trait IntoSystem<M> {
     type System: System + 'static;
 
     fn into_system(self) -> Self::System;
 }
 
-impl<F, M> IntoSystem<M> for F
+impl<F, M: SystemParam + 'static> IntoSystem<M> for F
 where
-    M: 'static,
     F: SystemParamFunction<M>,
 {
-    type System = FunctionSystem<F, M>;
+    type System = SystemParamFunctionHolder<F, M>;
     fn into_system(self) -> Self::System {
-        FunctionSystem {
+        SystemParamFunctionHolder {
             func: self,
             marker: PhantomData,
         }
     }
 }
 
+pub trait WorldParamFunction {
+    fn run(&mut self, world: &mut World);
+}
+
+impl<F> WorldParamFunction for F
+where
+    F: for<'w> FnMut(&'w mut World),
+{
+    fn run(&mut self, world: &mut World) {
+        self(world)
+    }
+}
+
+impl<F> IntoSystem<&mut World> for F
+where
+    F: WorldParamFunction + 'static,
+{
+    type System = WorldParamFunctionHolder<F>;
+    fn into_system(self) -> Self::System {
+        WorldParamFunctionHolder { func: self }
+    }
+}
+
+pub struct WorldParamFunctionHolder<F>
+where
+    F: WorldParamFunction,
+{
+    func: F,
+}
+
+impl<F> System for WorldParamFunctionHolder<F>
+where
+    F: WorldParamFunction,
+{
+    fn run(&mut self, world: &mut World) {
+        self.func.run(world);
+    }
+}
+
 #[test]
 fn test_0() {
     fn test() {}
-    let mut system = IntoSystem::<()>::into_system(test);
+    let mut system = IntoSystem::into_system(test);
     let mut world = World::default();
     system.run(&mut world);
 }

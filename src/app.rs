@@ -1,13 +1,14 @@
+use crate::builtins::systems::camera::{camera_startup_system, camera_update_system};
+use crate::builtins::systems::render::{render_startup_system, render_system};
 use crate::builtins::systems::ActiveCamera;
 use crate::ecs::query::Query;
 use crate::ecs::resource::ResMut;
-use crate::ecs::system::{BoxedSystem, IntoSystem, System, SystemParam};
+use crate::ecs::system::{BoxedSystem, IntoSystem, System, SystemOrWorldParam, SystemParam};
 use crate::ecs::World;
 use crate::graphics::PerspectiveCamera;
 use crate::input::InputState;
 use crate::render::Renderer;
 use std::sync::Arc;
-use tokio::runtime::Runtime;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -16,10 +17,19 @@ use winit::{
     window::Window,
 };
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SystemStage {
+    Startup,
+    Update,
+}
+
+use SystemStage::*;
+
 pub struct App {
     title: String,
     pub window: Option<Arc<Window>>,
     pub world: World,
+    pub startup_systems: Vec<BoxedSystem>,
     pub systems: Vec<BoxedSystem>,
 }
 
@@ -29,28 +39,52 @@ impl Default for App {
         world.add_resource(InputState::default());
         Self {
             title: "Carnot Application".to_string(),
-            window: Default::default(),
             world,
+            window: Default::default(),
+            startup_systems: Default::default(),
             systems: Default::default(),
         }
     }
 }
 
 impl App {
-    pub fn new(title: &str) -> Self {
-        Self {
-            title: title.to_string(),
-            ..Default::default()
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn with_title(mut self, title: &str) -> Self {
+        self.title = title.to_string();
+        self
+    }
+
+    /// Adds the default systems to the application.
+    ///
+    /// The default systems are:
+    /// - [`camera_startup_system`]
+    ///   - Provides a camera entity centered at origin looking down -Z composed of:
+    ///     - [`PerspectiveCamera`]
+    ///     - [`Transform`](crate::graphics::Transform)
+    ///     - [`ActiveCamera`](crate::builtins::systems::ActiveCamera)
+    /// - [`camera_update_system`]
+    /// - [`render_system`]
+    ///   - Renders all entities with a [`Mesh`] and [`Transform`] component using the [`ActiveCamera`]
+    pub fn with_default_systems(self) -> Self {
+        self.with_system(Startup, camera_startup_system)
+            .with_system(Startup, render_startup_system)
+            .with_system(Update, camera_update_system)
+            .with_system(Update, render_system)
+    }
+
+    pub fn with_system<F: IntoSystem<M>, M: SystemOrWorldParam>(
+        mut self,
+        stage: SystemStage,
+        function: F,
+    ) -> Self {
+        match stage {
+            Startup => self.startup_systems.push(Box::new(function.into_system())),
+            Update => self.systems.push(Box::new(function.into_system())),
         }
-    }
-
-    pub fn init_renderer(window: Arc<Window>) -> Renderer<'static> {
-        let rt = Runtime::new().unwrap();
-        rt.block_on(async { Renderer::new(window).await })
-    }
-
-    pub fn add_system<F: IntoSystem<Params>, Params: SystemParam>(&mut self, function: F) {
-        self.systems.push(Box::new(function.into_system()));
+        self
     }
 
     pub fn run(mut self) {
@@ -65,9 +99,12 @@ impl ApplicationHandler for App {
         let mut attributes = Window::default_attributes();
         attributes.title.clone_from(&self.title);
         let window = Arc::new(event_loop.create_window(attributes).unwrap());
-        let renderer = Self::init_renderer(window.clone());
-        self.world.add_resource::<Renderer>(renderer);
         self.window = Some(window);
+        self.world
+            .add_resource::<Arc<Window>>(self.window.clone().unwrap());
+        for system in self.startup_systems.iter_mut() {
+            system.run(&mut self.world);
+        }
     }
 
     fn window_event(
@@ -126,7 +163,9 @@ impl ApplicationHandler for App {
                     .unwrap()
                     .resize(physical_size);
                 let mut query =
-                    Query::<(&ActiveCamera, &mut PerspectiveCamera)>::fetch(&self.world);
+                    <Query<(&ActiveCamera, &mut PerspectiveCamera)> as SystemParam>::fetch(
+                        &self.world,
+                    );
                 if let Some((_, camera)) = (&mut query).into_iter().next() {
                     camera.update_aspect_ratio(
                         physical_size.width as f32 / physical_size.height as f32,

@@ -1,13 +1,31 @@
+use glam::Mat4;
 use winit::keyboard::Key;
 
 use crate::{
     builtins::systems::ActiveCamera,
-    ecs::{query::Query, resource::ResMut},
-    graphics::Transform,
+    ecs::{query::Query, resource::ResMut, World},
+    graphics::{PerspectiveCamera, Transform},
     input::InputState,
 };
 
-pub fn camera_system(
+pub fn camera_startup_system(world: &mut World) {
+    let camera = PerspectiveCamera::new(800_f32 / 600_f32, 103.0, 0.1, 100.0);
+    let camera_transform = Transform::from(
+        Mat4::look_to_rh(
+            glam::Vec3::new(0.0, 0.0, 0.0),
+            glam::Vec3::new(0.0, 0.0, -1.0),
+            glam::Vec3::new(0.0, 1.0, 0.0),
+        )
+        .inverse(),
+    );
+
+    let camera_entity = world.new_entity();
+    world.add_component_to_entity::<PerspectiveCamera>(camera_entity, camera);
+    world.add_component_to_entity::<Transform>(camera_entity, camera_transform);
+    world.add_component_to_entity::<ActiveCamera>(camera_entity, ActiveCamera);
+}
+
+pub fn camera_update_system(
     mut input_state: ResMut<InputState>,
     mut camera: Query<(&mut Transform, &ActiveCamera)>,
 ) {

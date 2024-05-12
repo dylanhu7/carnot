@@ -1,7 +1,12 @@
+use std::sync::Arc;
+
+use tokio::runtime::Runtime;
 use wgpu::util::DeviceExt;
+use winit::window::Window;
 
 use crate::ecs::query::Query;
 use crate::ecs::resource::ResMut;
+use crate::ecs::World;
 use crate::graphics::camera::CameraUniform;
 use crate::graphics::mesh::MeshVertex;
 use crate::graphics::transform::Mat4Uniform;
@@ -11,7 +16,14 @@ use crate::render::texture;
 use crate::render::vertex::Vertex;
 use crate::render::Renderer;
 
-pub struct ActiveCamera;
+use super::ActiveCamera;
+
+pub fn render_startup_system(world: &mut World) {
+    let window = world.get_resource::<Arc<Window>>().unwrap().clone();
+    let rt = Runtime::new().unwrap();
+    let renderer = rt.block_on(async { Renderer::new(window).await });
+    world.add_resource(renderer);
+}
 
 pub fn render_system(
     renderer: ResMut<Renderer>,

@@ -1,15 +1,12 @@
 use carnot::{
-    builtins::{
-        primitive::Primitive,
-        systems::{camera_system, render_system, ActiveCamera},
-    },
+    builtins::{primitives::Primitive, systems::ActiveCamera},
     graphics::{Mesh, PerspectiveCamera, Transform},
     App,
 };
 use glam::{Mat4, Vec3};
 
 fn main() {
-    let mut app = App::new("Carnot Demo");
+    let mut app = App::new().with_title("Carnot Demo").with_default_systems();
 
     let cube = app.world.new_entity();
     app.world
@@ -52,7 +49,5 @@ fn main() {
     app.world
         .add_component_to_entity::<ActiveCamera>(camera_entity, ActiveCamera);
 
-    app.add_system(render_system);
-    app.add_system(camera_system);
     app.run();
 }

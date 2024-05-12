@@ -2,6 +2,11 @@ use crate::ecs::resource::{Res, ResMut};
 
 use super::World;
 
+pub trait SystemOrWorldParam {}
+
+impl SystemOrWorldParam for &mut World {}
+impl<SP: SystemParam> SystemOrWorldParam for SP {}
+
 pub trait SystemParam {
     type Item<'a>: SystemParam;
 
@@ -9,14 +14,6 @@ pub trait SystemParam {
 }
 
 pub type SystemParamItem<'w, P> = <P as SystemParam>::Item<'w>;
-
-impl SystemParam for &World {
-    type Item<'a> = &'a World;
-
-    fn fetch(world: &World) -> Self::Item<'_> {
-        world
-    }
-}
 
 impl<'res, T: 'static> SystemParam for Res<'res, T> {
     type Item<'new> = Res<'new, T>;
