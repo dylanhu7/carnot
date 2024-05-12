@@ -1,25 +1,18 @@
-use carnot::{
-    builtins::{primitives::Primitive, systems::ActiveCamera},
-    graphics::{Mesh, PerspectiveCamera, Transform},
-    App,
-};
-use glam::{Mat4, Vec3};
+use carnot::prelude::*;
 
 fn main() {
-    let mut app = App::new().with_title("Carnot Demo").with_default_systems();
+    App::new()
+        .with_title("Carnot Demo")
+        .with_default_systems()
+        .with_system(Startup, spawn_ground)
+        .with_system(Startup, spawn_cube)
+        .run();
+}
 
-    let cube = app.world.new_entity();
-    app.world
-        .add_component_to_entity::<Mesh>(cube, Primitive::spawn(Primitive::CUBE));
-    app.world.add_component_to_entity::<Transform>(
-        cube,
-        Transform::from(Mat4::from_translation(Vec3::new(0.0, 0.0, -2.0))),
-    );
-
-    let ground = app.world.new_entity();
-    app.world
-        .add_component_to_entity::<Mesh>(ground, Primitive::spawn(Primitive::PLANE));
-    app.world.add_component_to_entity::<Transform>(
+fn spawn_ground(world: &mut World) {
+    let ground = world.new_entity();
+    world.add_component_to_entity::<Mesh>(ground, Primitive::spawn(Primitive::PLANE));
+    world.add_component_to_entity::<Transform>(
         ground,
         Transform::from(Mat4::from_scale_rotation_translation(
             Vec3::new(10.0, 1.0, 10.0),
@@ -27,27 +20,13 @@ fn main() {
             Vec3::new(0.0, -1.0, 0.0),
         )),
     );
+}
 
-    // let size = app.window.as_ref().unwrap().inner_size();
-    // let (width, height) = (size.width, size.height);
-
-    let camera = PerspectiveCamera::new(800_f32 / 600_f32, 103.0, 0.1, 100.0);
-    let camera_transform = Transform::from(
-        Mat4::look_to_rh(
-            glam::Vec3::new(0.0, 0.0, 0.0),
-            glam::Vec3::new(0.0, 0.0, -1.0),
-            glam::Vec3::new(0.0, 1.0, 0.0),
-        )
-        .inverse(),
+fn spawn_cube(world: &mut World) {
+    let cube = world.new_entity();
+    world.add_component_to_entity::<Mesh>(cube, Primitive::spawn(Primitive::CUBE));
+    world.add_component_to_entity::<Transform>(
+        cube,
+        Transform::from(Mat4::from_translation(Vec3::new(0.0, 0.0, -2.0))),
     );
-
-    let camera_entity = app.world.new_entity();
-    app.world
-        .add_component_to_entity::<PerspectiveCamera>(camera_entity, camera);
-    app.world
-        .add_component_to_entity::<Transform>(camera_entity, camera_transform);
-    app.world
-        .add_component_to_entity::<ActiveCamera>(camera_entity, ActiveCamera);
-
-    app.run();
 }
