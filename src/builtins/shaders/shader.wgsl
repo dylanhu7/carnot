@@ -29,7 +29,7 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
     out.world_position = model.model * vec4<f32>(input.position, 1.0);
-    out.world_normal = vec4<f32>(input.normal, 0.0);
+    out.world_normal = normalize(model.model * vec4<f32>(input.normal, 0.0));
     out.tex_coords = input.tex_coords;
     out.clip_position = camera.view_proj * out.world_position;
     return out;

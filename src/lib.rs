@@ -8,6 +8,7 @@ pub mod render;
 pub mod prelude {
     pub use crate::app::{App, SystemStage::*};
     pub use crate::builtins::primitives::Primitive;
+    pub use crate::builtins::systems::ActiveCamera;
     pub use crate::ecs::{
         query::Query,
         resource::{Res, ResMut},
