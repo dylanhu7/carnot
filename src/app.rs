@@ -1,5 +1,8 @@
-use crate::builtins::systems::camera::{camera_startup_system, camera_update_system};
-use crate::builtins::systems::render::{render_startup_system, render_system};
+use crate::builtins::systems::camera::{init_camera_system, update_camera_system};
+use crate::builtins::systems::render::{
+    init_crosshair_pipeline_system, init_pipeline_system, init_renderer_system,
+    update_render_system,
+};
 use crate::builtins::systems::ActiveCamera;
 use crate::ecs::query::Query;
 use crate::ecs::resource::ResMut;
@@ -69,10 +72,12 @@ impl App {
     /// - [`render_system`]
     ///   - Renders all entities with a [`Mesh`] and [`Transform`] component using the [`ActiveCamera`]
     pub fn with_default_systems(self) -> Self {
-        self.with_system(Startup, camera_startup_system)
-            .with_system(Startup, render_startup_system)
-            .with_system(Update, camera_update_system)
-            .with_system(Update, render_system)
+        self.with_system(Startup, init_camera_system)
+            .with_system(Startup, init_renderer_system)
+            .with_system(Startup, init_pipeline_system)
+            .with_system(Startup, init_crosshair_pipeline_system)
+            .with_system(Update, update_camera_system)
+            .with_system(Update, update_render_system)
     }
 
     pub fn with_system<F: IntoSystem<M>, M: SystemOrWorldParam>(

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use winit::window::Window;
 
@@ -9,12 +9,17 @@ use super::context;
 pub struct Renderer<'a> {
     pub window: Arc<Window>,
     pub context: RenderContext<'a>,
+    pub pipelines: HashMap<String, wgpu::RenderPipeline>,
 }
 
 impl<'a> Renderer<'a> {
     pub async fn new(window: Arc<Window>) -> Self {
         let context = context::RenderContext::new(window.clone()).await;
-        Self { window, context }
+        Self {
+            window,
+            context,
+            pipelines: Default::default(),
+        }
     }
 
     pub fn create_command_encoder(&self, label: Option<&str>) -> wgpu::CommandEncoder {

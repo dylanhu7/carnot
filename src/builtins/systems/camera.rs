@@ -8,7 +8,7 @@ use crate::{
     input::InputState,
 };
 
-pub fn camera_startup_system(world: &mut World) {
+pub fn init_camera_system(world: &mut World) {
     let camera = PerspectiveCamera::new(800_f32 / 600_f32, 103.0, 0.1, 100.0);
     let camera_transform = Transform::from(
         Mat4::look_to_rh(
@@ -25,7 +25,7 @@ pub fn camera_startup_system(world: &mut World) {
     world.add_component_to_entity::<ActiveCamera>(camera_entity, ActiveCamera);
 }
 
-pub fn camera_update_system(
+pub fn update_camera_system(
     mut input_state: ResMut<InputState>,
     mut camera: Query<(&mut Transform, &ActiveCamera)>,
 ) {

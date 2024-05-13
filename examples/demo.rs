@@ -19,7 +19,7 @@ fn initialize_player(mut query: Query<(&mut Transform, &ActiveCamera)>) {
 
 fn spawn_scene(world: &mut World) {
     // Dimensions of box
-    let (x, y, z) = (16.0, 8.0, 12.0);
+    let (x, y, z) = (20.0, 8.0, 16.0);
 
     let floor = world.new_entity();
     world.add_component_to_entity::<Mesh>(floor, Primitive::spawn(Primitive::PLANE));
