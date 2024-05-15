@@ -3,6 +3,7 @@ pub use mesh::Mesh;
 pub use transform::Transform;
 
 pub mod camera;
+pub mod implicit;
 pub mod mesh;
+pub mod ray;
 pub mod transform;
-

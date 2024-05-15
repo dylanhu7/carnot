@@ -63,14 +63,21 @@ impl App {
     /// Adds the default systems to the application.
     ///
     /// The default systems are:
-    /// - [`camera_startup_system`]
+    /// - [`init_camera_system`]
     ///   - Provides a camera entity centered at origin looking down -Z composed of:
     ///     - [`PerspectiveCamera`]
-    ///     - [`Transform`](crate::graphics::Transform)
+    ///     - [`CameraTransform`](crate::graphics::camera::CameraTransform)
     ///     - [`ActiveCamera`](crate::builtins::systems::ActiveCamera)
-    /// - [`camera_update_system`]
-    /// - [`render_system`]
-    ///   - Renders all entities with a [`Mesh`] and [`Transform`] component using the [`ActiveCamera`]
+    /// - [`init_renderer_system`]
+    ///   - Initializes the rendering context and creates a [`Renderer`] resource
+    /// - [`init_pipeline_system`]
+    ///   - Initializes the default render pipeline for geometry rendering.
+    /// - [`init_crosshair_pipeline_system`]
+    ///   - Initializes the crosshair rendering pipeline which renders a crosshair at the center of the screen
+    /// - [`update_camera_system`]
+    ///   - Updates the camera position based on user input
+    /// - [`update_render_system`]
+    ///   - Renders all entities with a renders all entities with a [`Mesh`](crate::graphics::Mesh) and [`Transform`](crate::graphics::Transform) component using the [`ActiveCamera`](crate::builtins::systems::ActiveCamera) camera.
     pub fn with_default_systems(self) -> Self {
         self.with_system(Startup, init_camera_system)
             .with_system(Startup, init_renderer_system)
@@ -105,6 +112,23 @@ impl ApplicationHandler for App {
             .with_title(self.title.clone())
             .with_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
         let window = Arc::new(event_loop.create_window(attributes).unwrap());
+        window.set_cursor_visible(false);
+        let physical_size = window.inner_size();
+        let width = physical_size.width;
+        let height = physical_size.height;
+        window
+            .set_cursor_position(winit::dpi::PhysicalPosition::new(
+                width as f64 / 2.0,
+                height as f64 / 2.0,
+            ))
+            .unwrap_or_else(|e| {
+                eprintln!("Failed to set cursor position: {}", e);
+            });
+        window
+            .set_cursor_grab(winit::window::CursorGrabMode::Locked)
+            .unwrap_or_else(|e| {
+                eprintln!("Failed to lock cursor: {}", e);
+            });
         self.window = Some(window);
         self.world
             .add_resource::<Arc<Window>>(self.window.clone().unwrap());
@@ -124,6 +148,7 @@ impl ApplicationHandler for App {
                 for system in self.systems.iter_mut() {
                     system.run(&mut self.world);
                 }
+                self.world.get_resource_mut::<InputState>().unwrap().clicked = false;
                 (|renderer: ResMut<Renderer>| renderer.window.request_redraw())
                     .into_system()
                     .run(&mut self.world);
@@ -143,6 +168,24 @@ impl ApplicationHandler for App {
                         .remove(&event.logical_key);
                 }
             }
+            WindowEvent::MouseInput {
+                device_id: _,
+                state,
+                button,
+            } => match state {
+                winit::event::ElementState::Pressed => {
+                    let mut input_state = self.world.get_resource_mut::<InputState>().unwrap();
+                    input_state.clicked = true;
+                    input_state.mouse_buttons.insert(button);
+                }
+                winit::event::ElementState::Released => {
+                    self.world
+                        .get_resource_mut::<InputState>()
+                        .unwrap()
+                        .mouse_buttons
+                        .remove(&button);
+                }
+            },
             // WindowEvent::CursorMoved { position, .. } => {
             //     self.world
             //         .get_resource_mut::<InputState>()

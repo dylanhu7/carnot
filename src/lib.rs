@@ -14,7 +14,7 @@ pub mod prelude {
         resource::{Res, ResMut},
         World,
     };
-    pub use crate::graphics::{Mesh, Transform};
+    pub use crate::graphics::{Mesh, PerspectiveCamera, Transform};
     pub use crate::input::InputState;
     pub use glam::{Mat3, Mat4, Quat, Vec2, Vec3, Vec4};
 }

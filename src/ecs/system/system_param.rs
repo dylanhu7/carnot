@@ -60,3 +60,18 @@ impl<P1: SystemParam, P2: SystemParam, P3: SystemParam> SystemParam for (P1, P2,
         (P1::fetch(world), P2::fetch(world), P3::fetch(world))
     }
 }
+
+impl<P1: SystemParam, P2: SystemParam, P3: SystemParam, P4: SystemParam> SystemParam
+    for (P1, P2, P3, P4)
+{
+    type Item<'a> = (P1::Item<'a>, P2::Item<'a>, P3::Item<'a>, P4::Item<'a>);
+
+    fn fetch(world: &World) -> Self::Item<'_> {
+        (
+            P1::fetch(world),
+            P2::fetch(world),
+            P3::fetch(world),
+            P4::fetch(world),
+        )
+    }
+}

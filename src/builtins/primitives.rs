@@ -1,4 +1,7 @@
-use crate::graphics::mesh::{Mesh, MeshVertex};
+use crate::graphics::{
+    implicit::{Implicit, ImplicitSphere},
+    mesh::{Mesh, MeshVertex},
+};
 
 pub enum Primitive {
     TRIANGLE,
@@ -7,6 +10,22 @@ pub enum Primitive {
     SPHERE,
     CYLINDER,
     CONE,
+}
+
+pub trait ImplicitFromPrimitive {
+    type Item: Implicit;
+    fn spawn_implicit(primitive: Primitive) -> Self::Item;
+}
+
+impl ImplicitFromPrimitive for Primitive {
+    type Item = ImplicitSphere;
+
+    fn spawn_implicit(primitive: Self) -> Self::Item {
+        match primitive {
+            Self::SPHERE => ImplicitSphere,
+            _ => ImplicitSphere,
+        }
+    }
 }
 
 impl Primitive {
@@ -24,7 +43,7 @@ impl Primitive {
                 vertices: Self::CUBE_VERTICES.to_vec(),
                 indices: Self::CUBE_INDICES.to_vec(),
             },
-            Primitive::SPHERE => tessellate_sphere(1.0, 64, 64),
+            Primitive::SPHERE => tessellate_sphere(0.5, 64, 64),
             Primitive::CYLINDER => todo!(),
             Primitive::CONE => todo!(),
         }

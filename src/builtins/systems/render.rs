@@ -7,7 +7,7 @@ use winit::window::Window;
 use crate::ecs::query::Query;
 use crate::ecs::resource::ResMut;
 use crate::ecs::World;
-use crate::graphics::camera::CameraUniform;
+use crate::graphics::camera::{CameraTransform, CameraUniform};
 use crate::graphics::mesh::MeshVertex;
 use crate::graphics::transform::Mat4Uniform;
 use crate::graphics::{Mesh, PerspectiveCamera, Transform};
@@ -28,14 +28,14 @@ pub fn init_renderer_system(world: &mut World) {
 pub fn update_render_system(
     renderer: ResMut<Renderer>,
     models: Query<(&Mesh, &Transform)>,
-    camera: Query<(&PerspectiveCamera, &Transform, &ActiveCamera)>,
+    camera: Query<(&PerspectiveCamera, &CameraTransform, &ActiveCamera)>,
 ) {
     let (camera, camera_transform, _) = camera.into_iter().next().expect("No active camera found");
 
     let device = &renderer.context.device;
 
     let camera_uniform = CameraUniform::from_inv_view_proj(
-        &camera_transform.into(),
+        &Transform::from(camera_transform).into(),
         &camera.get_projection_matrix(),
     );
     let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

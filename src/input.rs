@@ -1,6 +1,10 @@
 use std::collections::HashSet;
 
-use winit::{dpi::PhysicalPosition, event::MouseScrollDelta, keyboard::Key};
+use winit::{
+    dpi::PhysicalPosition,
+    event::{MouseButton, MouseScrollDelta},
+    keyboard::Key,
+};
 
 pub struct InputState {
     pub keys: HashSet<Key>,
@@ -8,6 +12,8 @@ pub struct InputState {
     pub last_mouse_position: Option<PhysicalPosition<f64>>,
     pub mouse_delta: (f64, f64),
     pub mouse_wheel_delta: MouseScrollDelta,
+    pub mouse_buttons: HashSet<MouseButton>,
+    pub clicked: bool,
 }
 
 impl InputState {
@@ -24,6 +30,8 @@ impl Default for InputState {
             last_mouse_position: None,
             mouse_delta: (0.0, 0.0),
             mouse_wheel_delta: MouseScrollDelta::LineDelta(0.0, 0.0),
+            mouse_buttons: HashSet::new(),
+            clicked: false,
         }
     }
 }

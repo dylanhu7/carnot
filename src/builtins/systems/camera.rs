@@ -4,30 +4,30 @@ use winit::keyboard::Key;
 use crate::{
     builtins::systems::ActiveCamera,
     ecs::{query::Query, resource::ResMut, World},
-    graphics::{PerspectiveCamera, Transform},
+    graphics::{camera::CameraTransform, PerspectiveCamera, Transform},
     input::InputState,
 };
 
 pub fn init_camera_system(world: &mut World) {
-    let camera = PerspectiveCamera::new(800_f32 / 600_f32, 103.0, 0.1, 100.0);
-    let camera_transform = Transform::from(
+    let camera = PerspectiveCamera::new(90.0, 800_f32 / 600_f32, 0.1, 100.0);
+    let camera_transform = CameraTransform::from(&Transform::from(
         Mat4::look_to_rh(
             glam::Vec3::new(0.0, 0.0, 0.0),
             glam::Vec3::new(0.0, 0.0, -1.0),
             glam::Vec3::new(0.0, 1.0, 0.0),
         )
         .inverse(),
-    );
+    ));
 
     let camera_entity = world.new_entity();
     world.add_component_to_entity::<PerspectiveCamera>(camera_entity, camera);
-    world.add_component_to_entity::<Transform>(camera_entity, camera_transform);
+    world.add_component_to_entity::<CameraTransform>(camera_entity, camera_transform);
     world.add_component_to_entity::<ActiveCamera>(camera_entity, ActiveCamera);
 }
 
 pub fn update_camera_system(
     mut input_state: ResMut<InputState>,
-    mut camera: Query<(&mut Transform, &ActiveCamera)>,
+    mut camera: Query<(&mut CameraTransform, &ActiveCamera)>,
 ) {
     let (transform, _) = (&mut camera)
         .into_iter()
@@ -54,7 +54,7 @@ pub fn update_camera_system(
 
     transform.0.w_axis += dir * SPEED;
 
-    const SENSITIVITY: f32 = 0.01;
+    const SENSITIVITY: f32 = 0.001;
     let (dx, dy) = (-input_state.mouse_delta.0, -input_state.mouse_delta.1);
 
     // first-person controls

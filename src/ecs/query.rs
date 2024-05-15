@@ -196,3 +196,109 @@ impl<D1: QueryData, D2: QueryData, D3: QueryData> QueryData for (D1, D2, D3) {
             .map(|((item1, item2), item3)| Some((item1?, item2?, item3?)))
     }
 }
+
+impl<D1: QueryData, D2: QueryData, D3: QueryData, D4: QueryData> QueryData for (D1, D2, D3, D4) {
+    type Item<'a> = (D1::Item<'a>, D2::Item<'a>, D3::Item<'a>, D4::Item<'a>);
+    type ItemVecRefs<'a> = (
+        D1::ItemVecRefs<'a>,
+        D2::ItemVecRefs<'a>,
+        D3::ItemVecRefs<'a>,
+        D4::ItemVecRefs<'a>,
+    );
+
+    fn fetch<'a, 'w: 'a>(world: &'w World) -> Self::ItemVecRefs<'a> {
+        (
+            D1::fetch(world),
+            D2::fetch(world),
+            D3::fetch(world),
+            D4::fetch(world),
+        )
+    }
+
+    fn refs_to_sparse_iter<'a>(
+        refs: &'a Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter1 = D1::refs_to_sparse_iter(&refs.0);
+        let iter2 = D2::refs_to_sparse_iter(&refs.1);
+        let iter3 = D3::refs_to_sparse_iter(&refs.2);
+        let iter4 = D4::refs_to_sparse_iter(&refs.3);
+        iter1
+            .zip(iter2)
+            .zip(iter3)
+            .zip(iter4)
+            .map(|(((item1, item2), item3), item4)| Some((item1?, item2?, item3?, item4?)))
+    }
+
+    fn refs_to_sparse_iter_mut<'a>(
+        refs: &'a mut Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter1 = D1::refs_to_sparse_iter_mut(&mut refs.0);
+        let iter2 = D2::refs_to_sparse_iter_mut(&mut refs.1);
+        let iter3 = D3::refs_to_sparse_iter_mut(&mut refs.2);
+        let iter4 = D4::refs_to_sparse_iter_mut(&mut refs.3);
+        iter1
+            .zip(iter2)
+            .zip(iter3)
+            .zip(iter4)
+            .map(|(((item1, item2), item3), item4)| Some((item1?, item2?, item3?, item4?)))
+    }
+}
+
+impl<D1: QueryData, D2: QueryData, D3: QueryData, D4: QueryData, D5: QueryData> QueryData
+    for (D1, D2, D3, D4, D5)
+{
+    type Item<'a> = (
+        D1::Item<'a>,
+        D2::Item<'a>,
+        D3::Item<'a>,
+        D4::Item<'a>,
+        D5::Item<'a>,
+    );
+    type ItemVecRefs<'a> = (
+        D1::ItemVecRefs<'a>,
+        D2::ItemVecRefs<'a>,
+        D3::ItemVecRefs<'a>,
+        D4::ItemVecRefs<'a>,
+        D5::ItemVecRefs<'a>,
+    );
+
+    fn fetch<'a, 'w: 'a>(world: &'w World) -> Self::ItemVecRefs<'a> {
+        (
+            D1::fetch(world),
+            D2::fetch(world),
+            D3::fetch(world),
+            D4::fetch(world),
+            D5::fetch(world),
+        )
+    }
+
+    fn refs_to_sparse_iter<'a>(
+        refs: &'a Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter1 = D1::refs_to_sparse_iter(&refs.0);
+        let iter2 = D2::refs_to_sparse_iter(&refs.1);
+        let iter3 = D3::refs_to_sparse_iter(&refs.2);
+        let iter4 = D4::refs_to_sparse_iter(&refs.3);
+        let iter5 = D5::refs_to_sparse_iter(&refs.4);
+        iter1.zip(iter2).zip(iter3).zip(iter4).zip(iter5).map(
+            |((((item1, item2), item3), item4), item5)| {
+                Some((item1?, item2?, item3?, item4?, item5?))
+            },
+        )
+    }
+
+    fn refs_to_sparse_iter_mut<'a>(
+        refs: &'a mut Self::ItemVecRefs<'_>,
+    ) -> impl Iterator<Item = Option<Self::Item<'a>>> {
+        let iter1 = D1::refs_to_sparse_iter_mut(&mut refs.0);
+        let iter2 = D2::refs_to_sparse_iter_mut(&mut refs.1);
+        let iter3 = D3::refs_to_sparse_iter_mut(&mut refs.2);
+        let iter4 = D4::refs_to_sparse_iter_mut(&mut refs.3);
+        let iter5 = D5::refs_to_sparse_iter_mut(&mut refs.4);
+        iter1.zip(iter2).zip(iter3).zip(iter4).zip(iter5).map(
+            |((((item1, item2), item3), item4), item5)| {
+                Some((item1?, item2?, item3?, item4?, item5?))
+            },
+        )
+    }
+}

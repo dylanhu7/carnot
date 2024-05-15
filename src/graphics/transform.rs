@@ -1,4 +1,12 @@
+use super::camera::CameraTransform;
+
 pub struct Transform(pub glam::Mat4);
+
+impl Transform {
+    pub fn borrow_matrix(&self) -> &glam::Mat4 {
+        &self.0
+    }
+}
 
 impl Default for Transform {
     fn default() -> Self {
@@ -27,6 +35,12 @@ impl From<&Transform> for glam::Mat4 {
 impl From<&glam::Mat4> for Transform {
     fn from(mat: &glam::Mat4) -> Self {
         Self(*mat)
+    }
+}
+
+impl From<&CameraTransform> for Transform {
+    fn from(camera: &CameraTransform) -> Self {
+        Self(camera.0)
     }
 }
 
