@@ -3,6 +3,7 @@ use carnot::{
     graphics::{
         camera::CameraTransform,
         implicit::{Implicit, ImplicitSphere},
+        material::{self, LambertMaterial},
         ray::Ray,
     },
     prelude::*,
@@ -31,9 +32,16 @@ fn initialize_player(mut query: Query<(&mut CameraTransform, &ActiveCamera)>) {
 fn spawn_scene(world: &mut World) {
     // Dimensions of box
     let (x, y, z) = (10.0, 4.0, 14.0);
+    let material = LambertMaterial {
+        ambient: [0.2, 0.2, 0.2],
+        diffuse: [0.7, 0.7, 0.7],
+        opacity: 1.0,
+        ..Default::default()
+    };
 
     let floor = world.new_entity();
     world.add_component_to_entity::<Mesh>(floor, Primitive::spawn(Primitive::PLANE));
+    world.add_component_to_entity::<LambertMaterial>(floor, material);
     world.add_component_to_entity::<Transform>(
         floor,
         Transform::from(Mat4::from_scale_rotation_translation(
@@ -45,6 +53,7 @@ fn spawn_scene(world: &mut World) {
 
     let ceiling = world.new_entity();
     world.add_component_to_entity::<Mesh>(ceiling, Primitive::spawn(Primitive::PLANE));
+    world.add_component_to_entity::<LambertMaterial>(ceiling, material);
     world.add_component_to_entity::<Transform>(
         ceiling,
         Transform::from(Mat4::from_scale_rotation_translation(
@@ -56,6 +65,7 @@ fn spawn_scene(world: &mut World) {
 
     let left_wall = world.new_entity();
     world.add_component_to_entity::<Mesh>(left_wall, Primitive::spawn(Primitive::PLANE));
+    world.add_component_to_entity::<LambertMaterial>(left_wall, material);
     world.add_component_to_entity::<Transform>(
         left_wall,
         Transform::from(Mat4::from_scale_rotation_translation(
@@ -67,6 +77,7 @@ fn spawn_scene(world: &mut World) {
 
     let right_wall = world.new_entity();
     world.add_component_to_entity::<Mesh>(right_wall, Primitive::spawn(Primitive::PLANE));
+    world.add_component_to_entity::<LambertMaterial>(right_wall, material);
     world.add_component_to_entity::<Transform>(
         right_wall,
         Transform::from(Mat4::from_scale_rotation_translation(
@@ -78,6 +89,7 @@ fn spawn_scene(world: &mut World) {
 
     let back_wall = world.new_entity();
     world.add_component_to_entity::<Mesh>(back_wall, Primitive::spawn(Primitive::PLANE));
+    world.add_component_to_entity::<LambertMaterial>(back_wall, material);
     world.add_component_to_entity::<Transform>(
         back_wall,
         Transform::from(Mat4::from_scale_rotation_translation(
@@ -89,6 +101,7 @@ fn spawn_scene(world: &mut World) {
 
     let front_wall = world.new_entity();
     world.add_component_to_entity::<Mesh>(front_wall, Primitive::spawn(Primitive::PLANE));
+    world.add_component_to_entity::<LambertMaterial>(front_wall, material);
     world.add_component_to_entity::<Transform>(
         front_wall,
         Transform::from(Mat4::from_scale_rotation_translation(
@@ -105,6 +118,12 @@ fn spawn_targets(world: &mut World) {
     for _ in 0..3 {
         let sphere = world.new_entity();
         let mesh = Primitive::spawn(Primitive::SPHERE);
+        let material = LambertMaterial {
+            ambient: [1.0, 0.27, 0.0],
+            diffuse: [1.0, 0.27, 0.0],
+            opacity: 1.0,
+            ..Default::default()
+        };
         let implicit = Primitive::spawn_implicit(Primitive::SPHERE);
         let grid_index = world
             .get_resource_mut::<TargetGrid>()
@@ -116,6 +135,7 @@ fn spawn_targets(world: &mut World) {
             .unwrap()
             .location_at(&grid_index);
         world.add_component_to_entity::<Mesh>(sphere, mesh);
+        world.add_component_to_entity::<LambertMaterial>(sphere, material);
         world.add_component_to_entity::<ImplicitSphere>(sphere, implicit);
         world.add_component_to_entity::<Transform>(
             sphere,

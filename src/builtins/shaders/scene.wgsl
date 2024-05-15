@@ -5,10 +5,17 @@ struct CameraUniform {
 struct ModelUniform {
     model: mat4x4<f32>,
 };
+struct LambertMaterialUniform {
+    ambient: vec3<f32>,
+    diffuse: vec3<f32>,
+    opacity: f32,
+};
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
 @group(1) @binding(0)
 var<uniform> model: ModelUniform;
+@group(2) @binding(0)
+var<uniform> material: LambertMaterialUniform;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -44,6 +51,7 @@ fn vs_main(
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var light_dir = normalize(camera.camera_pos - in.world_position);
     var intensity = max(dot(in.world_normal, light_dir), 0.0);
-    return vec4<f32>(intensity, intensity, intensity, 1.0);
+    var color = material.ambient + material.diffuse * intensity;
+    return vec4<f32>(color, material.opacity);
     // return textureSample(t_diffuse, s_diffuse, in.tex_coords);
 }

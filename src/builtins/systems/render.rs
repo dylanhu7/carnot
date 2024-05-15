@@ -8,6 +8,7 @@ use crate::ecs::query::Query;
 use crate::ecs::resource::ResMut;
 use crate::ecs::World;
 use crate::graphics::camera::{CameraTransform, CameraUniform};
+use crate::graphics::material::LambertMaterial;
 use crate::graphics::mesh::MeshVertex;
 use crate::graphics::transform::Mat4Uniform;
 use crate::graphics::{Mesh, PerspectiveCamera, Transform};
@@ -27,7 +28,7 @@ pub fn init_renderer_system(world: &mut World) {
 
 pub fn update_render_system(
     renderer: ResMut<Renderer>,
-    models: Query<(&Mesh, &Transform)>,
+    models: Query<(&Mesh, &Transform, &LambertMaterial)>,
     camera: Query<(&PerspectiveCamera, &CameraTransform, &ActiveCamera)>,
 ) {
     let (camera, camera_transform, _) = camera.into_iter().next().expect("No active camera found");
@@ -52,7 +53,7 @@ pub fn update_render_system(
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -101,10 +102,12 @@ pub fn update_render_system(
 
     let mut meshes = Vec::new();
     let mut transforms = Vec::new();
+    let mut materials = Vec::new();
 
-    for (mesh, transform) in &models {
+    for (mesh, transform, material) in &models {
         meshes.push(mesh);
         transforms.push(transform);
+        materials.push(material);
     }
 
     let vertex_buffers = meshes
@@ -118,7 +121,7 @@ pub fn update_render_system(
         })
         .collect::<Vec<_>>();
 
-    let uniforms = transforms
+    let model_buffers = transforms
         .iter()
         .map(|transform| {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -129,7 +132,7 @@ pub fn update_render_system(
         })
         .collect::<Vec<_>>();
 
-    let uniform_bind_groups = uniforms
+    let model_bind_groups = model_buffers
         .iter()
         .map(|uniform| {
             device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -139,6 +142,46 @@ pub fn update_render_system(
                     resource: uniform.as_entire_binding(),
                 }],
                 label: Some("model_bind_group"),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let material_buffers = materials
+        .iter()
+        .map(|material| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Material Buffer"),
+                contents: bytemuck::cast_slice(&[**material]),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let material_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("material_bind_group_layout"),
+        });
+
+    let material_bind_groups = material_buffers
+        .iter()
+        .map(|uniform| {
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                layout: &material_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform.as_entire_binding(),
+                }],
+                label: Some("material_bind_group"),
             })
         })
         .collect::<Vec<_>>();
@@ -208,13 +251,18 @@ pub fn update_render_system(
 
         render_pass.set_pipeline(scene_render_pipeline);
         render_pass.set_bind_group(0, &camera_bind_group, &[]);
-        for (((vertex_buffer, index_buffer), num_indices), uniform_bind_group) in vertex_buffers
+        for (
+            (((vertex_buffer, index_buffer), num_indices), model_bind_group),
+            material_bind_group,
+        ) in vertex_buffers
             .iter()
             .zip(index_buffers.iter())
             .zip(indices_counts.iter())
-            .zip(uniform_bind_groups.iter())
+            .zip(model_bind_groups.iter())
+            .zip(material_bind_groups.iter())
         {
-            render_pass.set_bind_group(1, uniform_bind_group, &[]);
+            render_pass.set_bind_group(1, model_bind_group, &[]);
+            render_pass.set_bind_group(2, material_bind_group, &[]);
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
             render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
             render_pass.draw_indexed(0..*num_indices, 0, 0..1);
@@ -242,7 +290,7 @@ pub fn init_pipeline_system(world: &mut World) {
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
@@ -268,9 +316,28 @@ pub fn init_pipeline_system(world: &mut World) {
             label: Some("model_bind_group_layout"),
         });
 
+    let material_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+            label: Some("material_bind_group_layout"),
+        });
+
     let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
-        bind_group_layouts: &[&camera_bind_group_layout, &model_bind_group_layout],
+        bind_group_layouts: &[
+            &camera_bind_group_layout,
+            &model_bind_group_layout,
+            &material_bind_group_layout,
+        ],
         push_constant_ranges: &[],
     });
 
