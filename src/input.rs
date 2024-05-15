@@ -11,7 +11,7 @@ pub struct InputState {
     pub mouse_position: PhysicalPosition<f64>,
     pub last_mouse_position: Option<PhysicalPosition<f64>>,
     pub mouse_delta: (f64, f64),
-    pub mouse_wheel_delta: MouseScrollDelta,
+    pub mouse_scroll_delta: MouseScrollDelta,
     pub mouse_buttons: HashSet<MouseButton>,
     pub clicked: bool,
 }
@@ -29,7 +29,7 @@ impl Default for InputState {
             mouse_position: PhysicalPosition::new(0.0, 0.0),
             last_mouse_position: None,
             mouse_delta: (0.0, 0.0),
-            mouse_wheel_delta: MouseScrollDelta::LineDelta(0.0, 0.0),
+            mouse_scroll_delta: MouseScrollDelta::LineDelta(0.0, 0.0),
             mouse_buttons: HashSet::new(),
             clicked: false,
         }

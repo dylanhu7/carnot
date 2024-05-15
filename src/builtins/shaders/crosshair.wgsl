@@ -29,15 +29,15 @@ struct CrosshairSettings {
 var<uniform> settings: CrosshairSettings;
 
 fn scale_length(value: u32) -> f32 {
-    return f32(value) * 0.002;  // Example scale factor
+    return f32(value) * 0.002;
 }
 
 fn scale_thickness(value: u32) -> f32 {
-    return f32(value) * 0.001;  // Example scale factor
+    return f32(value) * 0.001;
 }
 
 fn scale_gap(value: u32) -> f32 {
-    return f32(value) * 0.0025;  // Example scale factor
+    return f32(value) * 0.0025;
 }
 
 @fragment
@@ -52,12 +52,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
 
     // Check if within vertical line bounds
-    if (abs(x) < thickness && abs(y) > gap && abs(y) < length) {
+    if (abs(x) < thickness && abs(y) > gap && abs(y) < length + gap) {
         color = settings.color;  // Use the color from settings
     }
     
     // Check if within horizontal line bounds
-    if (abs(y) < thickness && abs(x) > gap && abs(x) < length) {
+    if (abs(y) < thickness && abs(x) > gap && abs(x) < length + gap) {
         color = settings.color;  // Use the color from settings
     }
 

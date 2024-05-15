@@ -144,10 +144,10 @@ pub fn update_render_system(
         .collect::<Vec<_>>();
 
     let settings = CrosshairSettings {
-        color: [0.0, 1.0, 1.0, 1.0],
-        length: 4,
+        color: [1.0, 0.0, 0.0, 1.0],
+        length: 3,
         thickness: 2,
-        gap: 0,
+        gap: 2,
         padding: 0,
     };
 

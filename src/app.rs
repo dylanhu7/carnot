@@ -234,18 +234,15 @@ impl ApplicationHandler for App {
         _device_id: winit::event::DeviceId,
         event: winit::event::DeviceEvent,
     ) {
+        let mut input_state = self.world.get_resource_mut::<InputState>().unwrap();
+
         match event {
             winit::event::DeviceEvent::MouseMotion { delta } => {
-                self.world
-                    .get_resource_mut::<InputState>()
-                    .unwrap()
-                    .mouse_delta = delta;
+                let current_delta = input_state.mouse_delta;
+                input_state.mouse_delta = (current_delta.0 + delta.0, current_delta.1 + delta.1);
             }
             winit::event::DeviceEvent::MouseWheel { delta } => {
-                self.world
-                    .get_resource_mut::<InputState>()
-                    .unwrap()
-                    .mouse_wheel_delta = delta;
+                input_state.mouse_scroll_delta = delta;
             }
             _ => {}
         }
