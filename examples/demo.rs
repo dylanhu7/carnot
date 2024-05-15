@@ -3,7 +3,7 @@ use carnot::{
     graphics::{
         camera::CameraTransform,
         implicit::{Implicit, ImplicitSphere},
-        material::{self, LambertMaterial},
+        material::LambertMaterial,
         ray::Ray,
     },
     prelude::*,
