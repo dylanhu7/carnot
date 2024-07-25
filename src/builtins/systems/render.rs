@@ -388,6 +388,7 @@ pub fn init_pipeline_system(world: &mut World) {
         // If the pipeline will be used with a multiview render pass, this
         // indicates how many array layers the attachments will have.
         multiview: None,
+        cache: None,
     });
 
     renderer
@@ -469,6 +470,7 @@ pub fn init_crosshair_pipeline_system(world: &mut World) {
             alpha_to_coverage_enabled: false,
         },
         multiview: None,
+        cache: None,
     });
 
     renderer

@@ -34,6 +34,7 @@ impl<'a> RenderContext<'a> {
                 &wgpu::DeviceDescriptor {
                     required_features: wgpu::Features::empty(),
                     required_limits: wgpu::Limits::default(),
+                    memory_hints: wgpu::MemoryHints::Performance,
                     label: None,
                 },
                 None,
